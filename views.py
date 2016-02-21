@@ -158,6 +158,7 @@ class View(object):
         self.statusbar_msg = None
 
         self.win = curses.newwin(h, w, y, x)
+        self.win.scrollok(False)
         self.win.attrset(self.colors.text)
         self.win.bkgdset(self.colors.text)
 
@@ -258,14 +259,15 @@ class View(object):
             self.needs_update = True
             self.update()
             self.visible = False
-            # Note: redraw of underlying window is needed
+            # update all underlying views
+            update()
 
     def close(self):
-        '''close the window'''
+        '''close the window
+        This is the same as hide(), we do not destroy the view
+        '''
 
-        if self.win is not None:
-            self.hide()
-            self.win = None
+        self.hide()
 
     def wput(self, x, y, msg, attr=0):
         '''print message in window at relative position
@@ -319,7 +321,14 @@ class View(object):
         if attr == 0:
             attr = self.colors.text
 
-        self.win.addstr(self.bounds.y + y, self.bounds.x + x, msg, attr)
+        # addstr() wants to scroll at end of window,
+        # even if you say scrollok(False) !!
+        # Therefore, use insstr()
+        # but insstr() has issues because it "pushes" the border out
+        if self.has_border:
+            self.win.addstr(self.bounds.y + y, self.bounds.x + x, msg, attr)
+        else:
+            self.win.insstr(self.bounds.y + y, self.bounds.x + x, msg, attr)
         self.needs_update = True
 
     def hline(self, x, y, char, length):
@@ -875,18 +884,15 @@ class Menu(View):
 
             if (key == KEY_ESC or key == self.closekey or
                 key.upper() == self.closekey):
-                self.hide()
-                update()
+                self.close()
                 return -1
 
             elif key == KEY_LEFT:
-                self.hide()
-                update()
+                self.close()
                 return -2
 
             elif key == KEY_RIGHT:
-                self.hide()
-                update()
+                self.close()
                 return -3
 
             elif key == KEY_UP:
@@ -902,13 +908,11 @@ class Menu(View):
                 self.goto_bottom()
 
             elif key == KEY_RETURN or key == ' ':
-                self.hide()
-                update()
+                self.close()
                 return self.cursor
 
             elif self.push_hotkey(key):
-                self.hide()
-                update()
+                self.close()
                 return self.cursor
 
             self.update()
@@ -1192,8 +1196,8 @@ class Button(Widget):
 class Alert(View):
     '''an alert box with buttons'''
 
-    def __init__(self, msg, colors, title=None, border=True, buttons=None,
-                 default=0):
+    def __init__(self, msg, colors, title=None, buttons=None, default=0,
+                 border=True):
         '''initialize'''
 
         # determine width and height
@@ -1644,21 +1648,19 @@ def _unit_test():
                       ])
     push(menubar)
 
-    view = TextView(5, 3, 75, 20, colors, title='hello', border=False)
+    view = TextView(5, 3, 75, 20, colors, title='hello')
     view.load('../expandglob.py')
     push(view)
     view.show()
-
-    alert = Alert('Failed to load file', alert_colors, title='Alert',
-                  border=True, buttons=['<C>ancel', '<O>K'], default=1)
-    push(alert)
 
     menubar.runloop()
     mx, my = menubar.position()
     selection = menubar.selection()
     debug('menu chosen selection: %d,%d %s' % (mx, my, selection))
-    pop()
-    update()
+
+    alert = Alert('Failed to load file', alert_colors, title='Alert',
+                  buttons=['<C>ancel', '<O>K'], default=1)
+    alert.runloop()
 
     view = top()
     selection = None
