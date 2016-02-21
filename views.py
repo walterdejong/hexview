@@ -59,7 +59,7 @@ REVERSE = curses.A_REVERSE
 
 STACK = []
 
-REGEX_HOTKEY = re.compile(r'<((Ctrl-)?[a-zA-Z0-9])>')
+REGEX_HOTKEY = re.compile(r'.*<((Ctrl-)?[!-~])>.*$')
 
 # debug messages
 DEBUG_LOG = []
@@ -627,7 +627,7 @@ class MenuItem(object):
 class Menu(View):
     '''a (dropdown) menu'''
 
-    def __init__(self, x, y, colors, border=True, items=None):
+    def __init__(self, x, y, colors, border=True, items=None, closekey=None):
         '''initialize'''
 
         # should really have a list of items
@@ -649,6 +649,7 @@ class Menu(View):
 
         # make list of MenuItems
         self.items = [MenuItem(item) for item in items]
+        self.closekey = closekey
         self.cursor = 0
 
     def draw(self):
@@ -793,9 +794,21 @@ class Menu(View):
         while True:
             key = getch()
 
-            if key == KEY_ESC:
-                self.close()
+            if (key == KEY_ESC or key == self.closekey or
+                key.upper() == self.closekey):
+                self.hide()
+                update()
                 return -1
+
+            elif key == KEY_LEFT:
+                self.hide()
+                update()
+                return -2
+
+            elif key == KEY_RIGHT:
+                self.hide()
+                update()
+                return -3
 
             elif key == KEY_UP:
                 self.move_up()
@@ -810,11 +823,13 @@ class Menu(View):
                 self.goto_bottom()
 
             elif key == KEY_RETURN or key == ' ':
-                self.close()
+                self.hide()
+                update()
                 return self.cursor
 
             elif self.push_hotkey(key):
-                self.close()
+                self.hide()
+                update()
                 return self.cursor
 
             self.update()
@@ -824,71 +839,92 @@ class Menu(View):
 class MenuBar(View):
     '''represents a menu bar'''
 
-    def __init__(self, colors, items):
-        '''initialize'''
+    def __init__(self, colors, menus, border=True):
+        '''initialize
+
+        menus is a list of tuples: ('header', ['item #1', 'item #2', 'etc.'])
+        '''
 
         super(MenuBar, self).__init__(0, 0, SCREEN_W, 1, colors, border=False)
 
-        # make list of MenuItems
-        self.items = [MenuItem(item) for item in items]
+        # make list of headers and menus
+        self.headers = [MenuItem(m[0]) for m in menus]
 
-        # make list of x positions for each item
+        # make list of x positions for each header
         self.pos = []
         x = 2
-        for item in self.items:
+        for header in self.headers:
             self.pos.append(x)
-            x += len(item.text) + 2
+            x += len(header.text) + 2
 
         self.cursor = 0
+
+        # make list of menus
+        self.menus = []
+        x = 0
+        for m in menus:
+            items = m[1]
+            menu = Menu(self.pos[x] - 1, self.frame.y + 1, colors, border,
+                        items, self.headers[x].hotkey)
+            self.menus.append(menu)
+            x += 1
+
+        # last chosen menu entry
+        self.choice = -1
 
     def draw(self):
         '''draw menu bar'''
 
         self.win.hline(0, 0, ' ', SCREEN_W)
         x = 0
-        for item in self.items:
+        for header in self.headers:
             if x == self.cursor:
                 self.draw_cursor()
             else:
-                self.wput(self.pos[x], 0, item.text, self.colors.menu)
-                if item.hotkey is not None:
+                self.wput(self.pos[x], 0, header.text, self.colors.menu)
+                if header.hotkey is not None:
                     # draw hotkey
-                    self.wput(self.pos[x] + item.hotkey_pos, 0, item.hotkey,
-                              self.colors.menuhotkey)
+                    self.wput(self.pos[x] + header.hotkey_pos, 0,
+                              header.hotkey, self.colors.menuhotkey)
             x += 1
 
     def clear_cursor(self):
         '''draw deselected item'''
 
-        item = self.items[self.cursor]
-        self.wput(self.pos[self.cursor] - 1, 0, ' ' + item.text + ' ',
+        header = self.headers[self.cursor]
+        self.wput(self.pos[self.cursor] - 1, 0, ' ' + header.text + ' ',
                   self.colors.menu)
-        if item.hotkey is not None:
+        if header.hotkey is not None:
             # draw hotkey
-            self.wput(self.pos[self.cursor] + item.hotkey_pos, 0, item.hotkey,
-                      self.colors.menuhotkey)
+            self.wput(self.pos[self.cursor] + header.hotkey_pos, 0,
+                      header.hotkey, self.colors.menuhotkey)
 
     def draw_cursor(self):
         '''draw highlighted item'''
 
-        item = self.items[self.cursor]
-        self.wput(self.pos[self.cursor] - 1, 0, ' ' + item.text + ' ',
+        header = self.headers[self.cursor]
+        self.wput(self.pos[self.cursor] - 1, 0, ' ' + header.text + ' ',
                   self.colors.activemenu)
-        if item.hotkey is not None:
+        if header.hotkey is not None:
             # draw hotkey
-            self.wput(self.pos[self.cursor] + item.hotkey_pos, 0, item.hotkey,
-                      self.colors.activemenuhotkey)
+            self.wput(self.pos[self.cursor] + header.hotkey_pos, 0,
+                      header.hotkey, self.colors.activemenuhotkey)
 
     def selection(self):
-        '''Returns plaintext of currently selected item'''
+        '''Returns plaintext of selected item, or None if none'''
 
-        item = self.items[self.cursor]
-        return item.text
+        if self.choice == -1:
+            return None
+
+        menu = self.menus[self.cursor]
+        return menu.items[self.choice].text
 
     def position(self):
-        '''Returns x position of currently selected item'''
+        '''Returns tuple: (header index, item index)
+        If item index == -1, no choice was made
+        '''
 
-        return self.pos[self.cursor] - 1
+        return self.cursor, self.choice
 
     def move_left(self):
         '''move left'''
@@ -896,7 +932,7 @@ class MenuBar(View):
         self.clear_cursor()
         self.cursor -= 1
         if self.cursor < 0:
-            self.cursor += len(self.items)
+            self.cursor += len(self.headers)
         self.draw_cursor()
 
     def move_right(self):
@@ -904,7 +940,7 @@ class MenuBar(View):
 
         self.clear_cursor()
         self.cursor += 1
-        if self.cursor >= len(self.items):
+        if self.cursor >= len(self.headers):
             self.cursor = 0
         self.draw_cursor()
 
@@ -913,8 +949,8 @@ class MenuBar(View):
 
         key = key.upper()
         x = 0
-        for item in self.items:
-            if item.hotkey == key:
+        for header in self.headers:
+            if header.hotkey == key:
                 if self.cursor != x:
                     self.clear_cursor()
                     self.cursor = x
@@ -940,6 +976,8 @@ class MenuBar(View):
             key = getch()
 
             if key == KEY_ESC:
+                self.clear_cursor()
+                self.choice = -1
                 return -1
 
             elif key == KEY_LEFT:
@@ -948,11 +986,30 @@ class MenuBar(View):
             elif key == KEY_RIGHT:
                 self.move_right()
 
-            elif key == KEY_RETURN or key == ' ' or key == KEY_DOWN:
-                return self.cursor
+            elif (key == KEY_RETURN or key == ' ' or key == KEY_DOWN or
+                  self.push_hotkey(key)):
+                # activate the menua
+                while True:
+                    choice = self.menus[self.cursor].runloop()
+                    if choice == -1:
+                        # escape: closed menu
+                        self.choice = -1
+                        break
 
-            elif self.push_hotkey(key):
-                return self.cursor
+                    elif choice == -2:
+                        # navigate left and open menu
+                        self.move_left()
+
+                    elif choice == -3:
+                        # navigate right and open menu
+                        self.move_right()
+
+                    else:
+                        self.clear_cursor()
+                        self.choice = choice
+                        return self.position
+
+                    self.update()
 
             self.update()
 
@@ -1492,8 +1549,20 @@ def _unit_test():
     menu_colors.activemenu = new_color(BLACK, GREEN)
     menu_colors.activemenuhotkey = new_color(RED, GREEN)
 
-    menubar = MenuBar(menu_colors, items=['<F>ile', '<E>dit', '<O>ptions',
-                                          '<W>indow', '<H>elp'])
+    menubar = MenuBar(menu_colors, 
+                      [('<~>', ['<A>bout', '--', '<Q>uit']),
+                       ('<F>ile', ['<N>ew', '<L>oad', '<S>ave', '--',
+                                   '<P>rint']),
+                       ('<E>dit', ['<U>ndo', 'Cut', '<C>opy', '<P>aste',
+                                   '--', '<F>ind', '<R>eplace']),
+                       ('<O>ptions', ['Option <1>', 'Option <2>',
+                                      'Option <3>']),
+                       ('<W>indow', ['<M>inimize', '<Z>oom',
+                                     '<C>ycle through windows',
+                                     'Bring to <F>ront']),
+                       ('<H>elp', ['<I>ntroduction', '<S>earch',
+                                   '<O>nline help'])
+                      ])
     push(menubar)
 
     view = TextView(5, 3, 75, 20, colors, title='hello', border=True)
@@ -1505,22 +1574,10 @@ def _unit_test():
                   border=True, buttons=['<C>ancel', '<O>K'], default=1)
     push(alert)
 
-    idx = menubar.runloop()
-    xpos = menubar.position()
-
-    menu = Menu(xpos, menubar.frame.y + 1, menu_colors, border=True,
-                items=['<A>bout',
-                       '--',
-                       '<Q>uit'])
-    push(menu)
-
-    menu = top()
-    idx = menu.runloop()
-    menubar.clear_cursor()
-
-    debug('menu chosen index: %d' % idx)
-    selection = menu.selection()
-    debug('menu chosen selection: %s' % selection)
+    menubar.runloop()
+    mx, my = menubar.position()
+    selection = menubar.selection()
+    debug('menu chosen selection: %d,%d %s' % (mx, my, selection))
     pop()
     update()
 
