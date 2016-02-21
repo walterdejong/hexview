@@ -740,7 +740,7 @@ class Alert(View):
             spacing = (self.bounds.w - total_len) / (len(buttons) + 1.0)
             if spacing < 1.0:
                 spacing = 1.0
-            self.text.append('spacing: %f' % spacing)
+
             x = spacing
             for label in buttons:
                 button = Button(self, int(x), y, label, activecolor,
