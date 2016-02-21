@@ -361,18 +361,21 @@ class TextView(View):
         self.draw_text()
 
     def draw_text(self):
-        '''redraws the text content'''
+        '''draws the text content'''
 
         y = 0
         while y < self.bounds.h:
-            try:
-                self.printline(y)
-            except IndexError:
-                break
+            if y == self.cursor:
+                self.draw_cursor()
+            else:
+                try:
+                    self.printline(y)
+                except IndexError:
+                    break
 
             y += 1
 
-        self.draw_cursor()
+        self.needs_update = True
 
     def clear_cursor(self):
         '''erase the cursor'''
