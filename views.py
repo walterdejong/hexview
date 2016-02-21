@@ -403,7 +403,8 @@ class TextView(View):
     def update_scrollbar(self):
         '''update scrollbar position'''
 
-        if self.scrollbar_h <= 0 or not self.text:
+        if (not self.has_border or self.scrollbar_h <= 0 or
+            not self.text):
             return
 
         old_y = self.scrollbar_y
@@ -418,7 +419,7 @@ class TextView(View):
     def clear_scrollbar(self):
         '''erase scrollbar'''
 
-        if self.scrollbar_h <= 0:
+        if not self.has_border or self.scrollbar_h <= 0:
             return
 
         y = self.scrollbar_y - self.scrollbar_h / 2
@@ -433,7 +434,7 @@ class TextView(View):
     def draw_scrollbar(self):
         '''draw scrollbar'''
 
-        if self.scrollbar_h <= 0:
+        if not self.has_border or self.scrollbar_h <= 0:
             return
 
         y = self.scrollbar_y - self.scrollbar_h / 2
@@ -459,7 +460,7 @@ class TextView(View):
         self.text = [x.rstrip() for x in self.text]
 
         # calc scrollbar
-        if len(self.text) > 0:
+        if self.has_border and len(self.text) > 0:
             factor = float(self.bounds.h) / len(self.text)
             self.scrollbar_h = int(factor * self.bounds.h + 0.5)
             if self.scrollbar_h < 1:
@@ -1643,7 +1644,7 @@ def _unit_test():
                       ])
     push(menubar)
 
-    view = TextView(5, 3, 75, 20, colors, title='hello', border=True)
+    view = TextView(5, 3, 75, 20, colors, title='hello', border=False)
     view.load('../expandglob.py')
     push(view)
     view.show()
