@@ -11,8 +11,14 @@ import time
 import traceback
 import re
 
-from curses import COLOR_WHITE, COLOR_YELLOW, COLOR_GREEN, COLOR_CYAN, \
-                   COLOR_BLUE, COLOR_MAGENTA, COLOR_RED, COLOR_BLACK
+from curses import COLOR_WHITE as WHITE
+from curses import COLOR_YELLOW as YELLOW
+from curses import COLOR_GREEN as GREEN
+from curses import COLOR_CYAN as CYAN
+from curses import COLOR_BLUE as BLUE
+from curses import COLOR_MAGENTA as MAGENTA
+from curses import COLOR_RED as RED
+from curses import COLOR_BLACK as BLACK
 
 # the 'stdscr' variable
 SCREEN = None
@@ -1108,19 +1114,18 @@ def _unit_test():
 
     init()
 
-    colors = ColorSet(COLOR_WHITE, COLOR_BLUE, BOLD)
-    colors.border = new_color(COLOR_CYAN, COLOR_BLUE, BOLD)
-    colors.title = new_color(COLOR_YELLOW, COLOR_BLUE, BOLD)
+    colors = ColorSet(WHITE, BLUE, BOLD)
+    colors.border = new_color(CYAN, BLUE, BOLD)
+    colors.title = new_color(YELLOW, BLUE, BOLD)
     colors.status = colors.border
-    colors.cursor = new_color(COLOR_WHITE, COLOR_BLACK, BOLD)
+    colors.cursor = new_color(WHITE, BLACK, BOLD)
 
-    alert_colors = ColorSet(COLOR_BLACK, COLOR_WHITE)
-    alert_colors.title = new_color(COLOR_RED, COLOR_WHITE)
-    alert_colors.button = new_color(COLOR_WHITE, COLOR_BLUE, BOLD)
-    alert_colors.buttonhotkey = new_color(COLOR_YELLOW, COLOR_BLUE, BOLD)
-    alert_colors.activebutton = new_color(COLOR_WHITE, COLOR_GREEN, BOLD)
-    alert_colors.activebuttonhotkey = new_color(COLOR_YELLOW, COLOR_GREEN,
-                                                BOLD)
+    alert_colors = ColorSet(BLACK, WHITE)
+    alert_colors.title = new_color(RED, WHITE)
+    alert_colors.button = new_color(WHITE, BLUE, BOLD)
+    alert_colors.buttonhotkey = new_color(YELLOW, BLUE, BOLD)
+    alert_colors.activebutton = new_color(WHITE, GREEN, BOLD)
+    alert_colors.activebuttonhotkey = new_color(YELLOW, GREEN, BOLD)
 
     view = TextView(5, 3, 75, 20, colors, title='hello', border=True)
     view.load('views.py')
