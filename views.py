@@ -354,11 +354,15 @@ class TextView(View):
         self.cursor = 0
         self.xoffset = 0
 
+        self.scrollbar_y = 0
+        self.scrollbar_h = 0
+
     def draw(self):
         '''draw the window'''
 
         super(TextView, self).draw()
         self.draw_text()
+        self.draw_scrollbar()
 
     def draw_text(self):
         '''draws the text content'''
@@ -396,10 +400,51 @@ class TextView(View):
 
         self.wprint(0, y, self.text[self.top + y][self.xoffset:], attr)
 
-    def selection(self):
-        '''Returns currently selected line'''
+    def update_scrollbar(self):
+        '''update scrollbar position'''
 
-        return self.text[self.top + self.cursor]
+        if self.scrollbar_h <= 0 or not self.text:
+            return
+
+        old_y = self.scrollbar_y
+
+        factor = float(self.bounds.h) / len(self.text)
+        new_y = int((self.top + self.cursor) * factor + 0.5)
+        if old_y != new_y:
+            self.clear_scrollbar()
+            self.scrollbar_y = new_y
+            self.draw_scrollbar()
+
+    def clear_scrollbar(self):
+        '''erase scrollbar'''
+
+        if self.scrollbar_h <= 0:
+            return
+
+        y = self.scrollbar_y - self.scrollbar_h / 2
+        if y < 0:
+            y = 0
+        if y > self.bounds.h - self.scrollbar_h:
+            y = self.bounds.h - self.scrollbar_h
+
+        self.win.vline(y + self.bounds.y, self.frame.w - 1,
+                       curses.ACS_VLINE, self.scrollbar_h, self.colors.border)
+
+    def draw_scrollbar(self):
+        '''draw scrollbar'''
+
+        if self.scrollbar_h <= 0:
+            return
+
+        y = self.scrollbar_y - self.scrollbar_h / 2
+        if y < 0:
+            y = 0
+        if y > self.bounds.h - self.scrollbar_h:
+            y = self.bounds.h - self.scrollbar_h
+
+        self.win.vline(y + self.bounds.y, self.frame.w - 1,
+                       curses.ACS_CKBOARD, self.scrollbar_h,
+                       self.colors.status)
 
     def load(self, filename):
         '''load text file
@@ -413,10 +458,25 @@ class TextView(View):
         # strip newlines
         self.text = [x.rstrip() for x in self.text]
 
+        # calc scrollbar
+        if len(self.text) > 0:
+            factor = float(self.bounds.h) / len(self.text)
+            self.scrollbar_h = int(factor * self.bounds.h + 0.5)
+            if self.scrollbar_h < 1:
+                self.scrollbar_h = 1
+            if self.scrollbar_h > self.bounds.h:
+                self.scrollbar_h = self.bounds.h
+            self.update_scrollbar()
+
         if self.title is not None:
             self.title = os.path.basename(filename)
             # do a full draw because the title has changed
             self.draw()
+
+    def selection(self):
+        '''Returns currently selected line'''
+
+        return self.text[self.top + self.cursor]
 
     def move_up(self):
         '''move up'''
@@ -428,8 +488,13 @@ class TextView(View):
         else:
             self.scroll_up()
 
+        self.update_scrollbar()
+
     def move_down(self):
         '''move down'''
+
+        if not self.text or self.cursor >= len(self.text) - 1:
+            return
 
         if self.cursor < self.bounds.h - 1:
             self.clear_cursor()
@@ -437,6 +502,8 @@ class TextView(View):
             self.draw_cursor()
         else:
             self.scroll_down()
+
+        self.update_scrollbar()
 
     def move_left(self):
         '''move left'''
@@ -456,7 +523,7 @@ class TextView(View):
             self.draw_text()
 
     def scroll_up(self):
-        '''scroll up'''
+        '''scroll up one line'''
 
         old_top = self.top
         self.top -= 1
@@ -467,7 +534,7 @@ class TextView(View):
             self.draw_text()
 
     def scroll_down(self):
-        '''scroll down'''
+        '''scroll down one line'''
 
         old_top = self.top
         self.top += 1
@@ -501,6 +568,8 @@ class TextView(View):
             self.cursor = new_cursor
             self.draw_cursor()
 
+        self.update_scrollbar()
+
     def pagedown(self):
         '''scroll one page down'''
 
@@ -529,6 +598,8 @@ class TextView(View):
             self.cursor = new_cursor
             self.draw_cursor()
 
+        self.update_scrollbar()
+
     def goto_top(self):
         '''go to top of document'''
 
@@ -544,6 +615,8 @@ class TextView(View):
             self.clear_cursor()
             self.cursor = new_cursor
             self.draw_cursor()
+
+        self.update_scrollbar()
 
     def goto_bottom(self):
         '''go to bottom of document'''
@@ -571,6 +644,8 @@ class TextView(View):
             self.clear_cursor()
             self.cursor = new_cursor
             self.draw_cursor()
+
+        self.update_scrollbar()
 
     def runloop(self):
         '''control the textview'''
@@ -1569,7 +1644,7 @@ def _unit_test():
     push(menubar)
 
     view = TextView(5, 3, 75, 20, colors, title='hello', border=True)
-    view.load('views.py')
+    view.load('../expandglob.py')
     push(view)
     view.show()
 
