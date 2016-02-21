@@ -1,12 +1,8 @@
 #
 #   views.py     WJ116
 #
-#   * TODO color schemes
-#     It gets really old having to pass the color all the time,
-#     when all UI elements should have their common colors
-#
 
-'''(n)curses windows'''
+'''(n)curses console text mode UI'''
 
 import curses
 import os
@@ -20,6 +16,10 @@ from curses import COLOR_WHITE, COLOR_YELLOW, COLOR_GREEN, COLOR_CYAN, \
 
 # the 'stdscr' variable
 SCREEN = None
+
+# screen dimensions
+SCREEN_W = None
+SCREEN_H = None
 
 # key codes
 # in cwin there are strings; translated by getch()
@@ -53,6 +53,26 @@ REVERSE = curses.A_REVERSE
 STACK = []
 
 REGEX_HOTKEY = re.compile(r'<((Ctrl-)?[a-zA-Z0-9])>')
+
+# debug messages
+DEBUG_LOG = []
+
+
+def debug(msg):
+    '''keep message in debug log'''
+
+    DEBUG_LOG.append(msg)
+
+
+def dump_debug():
+    '''dump out the debug log'''
+
+    global DEBUG_LOG
+
+    for msg in DEBUG_LOG:
+        print msg
+
+    DEBUG_LOG = []
 
 
 class Rect(object):
@@ -704,10 +724,9 @@ class Alert(View):
         elif title is not None:
             h += 1
 
-        screen_h, screen_w = SCREEN.getmaxyx()
         # center the box
-        x = (screen_w - w) / 2
-        y = int((screen_h - h) * 0.3)
+        x = center_x(w)
+        y = center_y(h)
 
         super(Alert, self).__init__(x, y, w, h, title, border, textcolor,
                                     bordercolor, titlecolor)
@@ -723,7 +742,7 @@ class Alert(View):
         if buttons is None:
             # one OK button: center it
             label = '<O>K'
-            x = (self.bounds.w - (button_width(label) + 2)) / 2
+            x = center_x(button_width(label), self.bounds.w)
             self.buttons = [Button(self, x, y, label, activecolor,
                                    inactivecolor, hotkeycolor),]
         else:
@@ -752,8 +771,8 @@ class Alert(View):
                 hotkey = label_hotkey(label)
                 self.hotkeys.append(hotkey)
 
+        assert default >= 0 and default < len(self.buttons)
         self.cursor = default
-        assert self.cursor >= 0 and self.cursor < len(self.buttons)
         self.buttons[self.cursor].select()
 
     def draw(self):
@@ -869,7 +888,7 @@ class Alert(View):
 def init():
     '''initialize'''
 
-    global SCREEN
+    global SCREEN, SCREEN_W, SCREEN_H
 
     SCREEN = curses.initscr()
     curses.savetty()
@@ -878,6 +897,8 @@ def init():
     SCREEN.keypad(1)
     curses.raw()
     curses.curs_set(0)
+
+    SCREEN_H, SCREEN_W = SCREEN.getmaxyx()
 
     # odd ... screen must be refreshed at least once,
     # or things won't work as expected
@@ -894,6 +915,8 @@ def terminate():
         curses.echo()
         curses.resetty()
         curses.endwin()
+
+    dump_debug()
 
 
 def getch():
@@ -983,6 +1006,32 @@ def button_width(label):
     if w <= 3:
         w += 2
     return w + 4
+
+
+def center_x(width, area=0):
+    '''Return centered x coordinate
+    If area is not given, center on screen
+    '''
+
+    if area == 0:
+        area = SCREEN_W
+
+    x = (area - width) * 0.5
+
+    # round up for funny looking non-centered objects
+    return int(x + 0.5)
+
+
+def center_y(height, area=0):
+    '''Return centered y coordinate
+    If area is not given, put it halfway the top of screen
+    '''
+
+    if area == 0:
+        area = SCREEN_H
+
+    y = (area - height) * 0.3
+    return int(y + 0.5)
 
 
 def push(view):
