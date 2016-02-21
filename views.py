@@ -107,6 +107,11 @@ class ColorSet(object):
         self.activebutton = self.text
         self.activebuttonhotkey = self.text
 
+        self.menu = self.text
+        self.menuhotkey = self.text
+        self.activemenu = self.text
+        self.activemenuhotkey = self.text
+
 
 
 class Rect(object):
@@ -317,6 +322,15 @@ class View(object):
         self.win.addstr(self.bounds.y + y, self.bounds.x + x, msg, attr)
         self.needs_update = True
 
+    def hline(self, x, y, char, length):
+        '''draw a horizontal line in the view'''
+
+        if x + length > self.bounds.w:
+            length = self.bounds.w - x
+            if length <= 0:
+                return
+
+        self.win.hline(y + self.bounds.y, x + self.bounds.x, char, length)
 
 
 class TextView(View):
@@ -597,6 +611,213 @@ class TextView(View):
             self.update()
 
 
+class MenuItem(object):
+    '''a single menu item'''
+
+    def __init__(self, label):
+        '''initialize'''
+
+        hotkey, hotkey_pos, plaintext = label_hotkey(label)
+        self.hotkey = hotkey
+        self.hotkey_pos = hotkey_pos
+        self.text = plaintext
+
+
+
+class Menu(View):
+    '''a (dropdown) menu'''
+
+    def __init__(self, x, y, colors, border=True, items=None):
+        '''initialize'''
+
+        # should really have a list of items
+        assert items is not None
+
+        # determine width and height
+        w = 0
+        for item in items:
+            l = label_length(item) + 2
+            if border:
+                l += 2
+            if l > w:
+                w = l
+        h = len(items)
+        if border:
+            h += 2
+
+        super(Menu, self).__init__(x, y, w, h, colors, None, border)
+
+        # make list of MenuItems
+        self.items = [MenuItem(item) for item in items]
+        self.cursor = 0
+
+    def draw(self):
+        '''draw the window'''
+
+        super(Menu, self).draw()
+        self.draw_items()
+
+    def draw_items(self):
+        '''draw the items'''
+
+        y = 0
+        for item in self.items:
+            if y == self.cursor:
+                # highlighted entry
+                self.draw_cursor()
+            else:
+                # normal entry
+                if item.text == '--':
+                    # separator line
+                    self.hline(0, y, curses.ACS_HLINE, self.bounds.w)
+                else:
+                    self.wprint(1, y, item.text, self.colors.menu)
+                    if item.hotkey is not None:
+                        # draw hotkey
+                        self.wput(1 + item.hotkey_pos, y, item.hotkey,
+                                  self.colors.menuhotkey)
+            y += 1
+
+        self.needs_update = True
+
+    def clear_cursor(self):
+        '''erase the cursor'''
+
+        item = self.items[self.cursor]
+        self.wprint(0, self.cursor, ' ' + item.text, self.colors.menu)
+        if item.hotkey is not None:
+            # draw hotkey
+            self.wput(1 + item.hotkey_pos, self.cursor, item.hotkey,
+                      self.colors.menuhotkey)
+
+        self.needs_update = True
+
+    def draw_cursor(self):
+        '''draw highlighted cursor line'''
+
+        item = self.items[self.cursor]
+        self.wprint(0, self.cursor, ' ' + item.text, self.colors.activemenu)
+        if item.hotkey is not None:
+            # draw hotkey
+            self.wput(1 + item.hotkey_pos, self.cursor, item.hotkey,
+                      self.colors.activemenuhotkey)
+
+        self.needs_update = True
+
+    def selection(self):
+        '''Returns plaintext of currently selected item'''
+
+        item = self.items[self.cursor]
+        return item.text
+
+    def move_up(self):
+        '''move up'''
+
+        self.clear_cursor()
+        self.cursor -= 1
+        if self.cursor < 0:
+            self.cursor += len(self.items)
+
+        if self.items[self.cursor].text == '--':
+            # skip over separator line
+            self.cursor -= 1
+            assert self.cursor >= 0
+            assert self.items[self.cursor].text != '--'
+
+        self.draw_cursor()
+
+    def move_down(self):
+        '''move down'''
+
+        self.clear_cursor()
+        self.cursor += 1
+        if self.cursor >= len(self.items):
+            self.cursor = 0
+
+        if self.items[self.cursor].text == '--':
+            # skip over separator line
+            self.cursor += 1
+            assert self.cursor < len(self.items)
+            assert self.items[self.cursor].text != '--'
+
+        self.draw_cursor()
+
+    def goto_top(self):
+        '''go to top of menu'''
+
+        if self.cursor == 0:
+            return
+
+        self.clear_cursor()
+        self.cursor = 0
+        self.draw_cursor()
+
+    def goto_bottom(self):
+        '''go to bottom of menu'''
+
+        if self.cursor >= len(self.items) - 1:
+            return
+
+        self.clear_cursor()
+        self.cursor = len(self.items) - 1
+        self.draw_cursor()
+
+    def push_hotkey(self, key):
+        '''Returns True if the hotkey was pressed'''
+
+        key = key.upper()
+        y = 0
+        for item in self.items:
+            if item.hotkey == key:
+                if self.cursor != y:
+                    self.clear_cursor()
+                    self.cursor = y
+                    self.draw_cursor()
+                    # give visual feedback
+                    self.update()
+                    time.sleep(0.1)
+
+                return True
+
+            y += 1
+
+        return False
+
+    def runloop(self):
+        '''control the menu
+        Returns index of selected entry or -1 on escape
+        '''
+
+        self.show()
+
+        while True:
+            key = getch()
+
+            if key == KEY_ESC:
+                self.close()
+                return -1
+
+            elif key == KEY_UP:
+                self.move_up()
+
+            elif key == KEY_DOWN:
+                self.move_down()
+
+            elif key == KEY_PAGEUP or key == KEY_HOME:
+                self.goto_top()
+
+            elif key == KEY_PAGEDOWN or key == KEY_END:
+                self.goto_bottom()
+
+            elif key == KEY_RETURN or key == ' ':
+                return self.cursor
+
+            elif self.push_hotkey(key):
+                return self.cursor
+
+            self.update()
+
+
 
 class Widget(object):
     '''represents a widget'''
@@ -634,16 +855,7 @@ class Button(Widget):
     def draw(self):
         '''draw button'''
 
-        label = self.label
-        hotkey = label_hotkey(label)
-        if hotkey is not None:
-            hotkey_pos = label.find('<')
-            # strip out hooks
-            label = label.replace('<', '')
-            label = label.replace('>', '')
-        else:
-            hotkey_pos = None
-
+        hotkey, hotkey_pos, label = label_hotkey(self.label)
         add = 1
         text = ' ' + label + ' '
         if len(text) <= 5:
@@ -665,7 +877,7 @@ class Button(Widget):
 
         self.parent.wput(xpos, self.y, text, attr)
 
-        if hotkey_pos is not None:
+        if hotkey_pos > -1:
             # draw hotkey
             if self.active:
                 attr = self.colors.activebuttonhotkey
@@ -772,7 +984,7 @@ class Alert(View):
                 x += spacing + button_width(label)
 
                 # save hotkey
-                hotkey = label_hotkey(label)
+                hotkey, _, _ = label_hotkey(label)
                 self.hotkeys.append(hotkey)
 
         assert default >= 0 and default < len(self.buttons)
@@ -984,7 +1196,7 @@ def color(idx, attr=0):
 
 
 def label_hotkey(label):
-    '''Returns the hotkey in the label
+    '''Returns triple: (hotkey, hotkey position, plaintext) of the label
     or None if there is none
 
     Mind that hotkeys are uppercase, or may also be "Ctrl-key"
@@ -992,12 +1204,20 @@ def label_hotkey(label):
 
     m = REGEX_HOTKEY.match(label)
     if m is None:
-        return None
+        return (None, -1, label)
 
     hotkey = m.groups()[0]
     if len(hotkey) == 1:
         hotkey = hotkey.upper()
-    return hotkey
+
+    hotkey_pos = label.find('<')
+    if hotkey_pos > -1:
+        # strip out hooks
+        plaintext = label.replace('<', '').replace('>', '')
+    else:
+        plaintext = label
+
+    return (hotkey, hotkey_pos, plaintext)
 
 
 def label_length(label):
@@ -1127,10 +1347,21 @@ def _unit_test():
     alert_colors.activebutton = new_color(WHITE, GREEN, BOLD)
     alert_colors.activebuttonhotkey = new_color(YELLOW, GREEN, BOLD)
 
+    # warning: this is a reference, not a copy ..!
+    menu_colors = alert_colors
+    menu_colors.menuhotkey = alert_colors.title
+    menu_colors.activemenu = new_color(BLACK, GREEN)
+    menu_colors.activemenuhotkey = new_color(RED, GREEN)
+
     view = TextView(5, 3, 75, 20, colors, title='hello', border=True)
     view.load('views.py')
     push(view)
     view.show()
+
+    menu = Menu(5, 3, menu_colors, border=True, items=['<A>bout',
+                                                       '--',
+                                                       '<Q>uit'])
+    push(menu)
 
     alert = Alert('Failed to load file', alert_colors, title='Alert',
                   border=True, buttons=['<C>ancel', '<O>K'], default=1)
@@ -1141,6 +1372,15 @@ def _unit_test():
 
     pop()
     update()
+
+    menu = top()
+    idx = menu.runloop()
+    debug('menu chosen index: %d' % idx)
+    selection = menu.selection()
+    debug('menu chosen selection: %s' % selection)
+    pop()
+    update()
+
     view = top()
     selection = None
     while True:
