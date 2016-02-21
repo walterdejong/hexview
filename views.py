@@ -47,6 +47,7 @@ KEY_TABLE = {'0x1b': KEY_ESC, '0x0a': KEY_RETURN,
              '0x106': KEY_HOME, '0x168': KEY_END,
              '0x14a': KEY_DEL, '0x107': KEY_BS, '0x7f': KEY_BS}
 
+COLOR_INDEX = 0
 BOLD = curses.A_BOLD
 REVERSE = curses.A_REVERSE
 
@@ -75,50 +76,30 @@ def dump_debug():
     DEBUG_LOG = []
 
 
-class ColorScheme(object):
-    '''collection of colors'''
+class ColorSet(object):
+    '''collection of colors for a generic View'''
 
-    '''
-    0 unused (default terminal colors)
-    1 text
-    2 border
-    3 title
-    4 status
-    5 selection
-    6 dialogtext
-    7 dialogborder
-    8 dialogtitle
-    9 active
-    10 inactive
-    11 activehotkey
-    12 inactivehotkey
-    '''
-
-    def __init__(self, text, border=0, title=0, status=0,
-                 active=0, inactive=0):
+    def __init__(self, fg, bg, attr=0):
         '''initialize'''
 
-        self.text = text
+        # Note: If you choose text color in reverse-video, then the entire
+        # window will be with reversed colors
+        # That's just the way it is ... do not choose text REVERSE
 
-        if border == 0:
-            border = text
-        self.border = border
+        self.text = new_color(fg, bg, attr)
 
-        if title == 0:
-            title = border
-        self.title = title
+        # set everything as default
+        # which sucks, but can't leave it uninitialized
+        self.border = self.text
+        self.title = self.text
+        self.status = self.text
+        self.cursor = self.text
 
-        if status == 0:
-            staus = title
-        self.status = status
-
-        if active == 0:
-            active = title
-        self.active = active
-
-        if inactive == 0:
-            inactive = active
-        self.inactive = inactive
+        # not all views use these, but set them anyway
+        self.button = self.text
+        self.buttonhotkey = self.text
+        self.activebutton = self.text
+        self.activebuttonhotkey = self.text
 
 
 
@@ -138,13 +119,8 @@ class Rect(object):
 class View(object):
     '''represents an onscreen window'''
 
-    def __init__(self, x, y, w, h, title=None, border=True, textcolor=0,
-                 bordercolor=0, titlecolor=0, statuscolor=0):
+    def __init__(self, x, y, w, h, colors, title=None, border=True):
         '''initialize'''
-
-        # Note: If you choose textcolor in reverse-video, then the entire
-        # window will be with reversed colors
-        # That's just the way it is ... do not choose textcolor REVERSE
 
         # Note: for windows with a statusbar, you should do self.bounds.h -= 1
 
@@ -152,6 +128,7 @@ class View(object):
         assert h > 0
 
         self.frame = Rect(x, y, w, h)
+        self.colors = colors
         self.title = title
         self.has_border = border
         if self.has_border:
@@ -165,24 +142,13 @@ class View(object):
         assert self.bounds.w > 0
         assert self.bounds.h > 0
 
-        self.textcolor = textcolor
-        self.bordercolor = bordercolor
-        if self.bordercolor == 0:
-            self.bordercolor = self.textcolor
-        self.titlecolor = titlecolor
-        if self.titlecolor == 0:
-            self.titlecolor = self.textcolor
-        self.statuscolor = statuscolor
-        if self.statuscolor == 0:
-            self.statuscolor = self.textcolor
-
         self.visible = False
         self.needs_update = False
         self.statusbar_msg = None
 
         self.win = curses.newwin(h, w, y, x)
-        self.win.attrset(self.textcolor)
-        self.win.bkgdset(self.textcolor)
+        self.win.attrset(self.colors.text)
+        self.win.bkgdset(self.colors.text)
 
     def draw(self):
         '''draw the window'''
@@ -191,12 +157,12 @@ class View(object):
         self.needs_update = True
 
         if self.has_border:
-            self.win.attrset(self.bordercolor)
+            self.win.attrset(self.colors.border)
             self.win.box()
 
         self.draw_title()
         self.draw_statusbar()
-        self.win.attrset(self.textcolor)
+        self.win.attrset(self.colors.text)
 
     def draw_title(self):
         '''draw the title'''
@@ -204,7 +170,7 @@ class View(object):
         if self.title is None:
             return
 
-        self.win.attrset(self.titlecolor)
+        self.win.attrset(self.colors.title)
 
         if not self.has_border:
             self.win.hline(0, 0, ' ', self.frame.w)
@@ -229,15 +195,15 @@ class View(object):
         if self.has_border:
             line_char = curses.ACS_HLINE
             xpos = 1
-            self.win.attrset(self.bordercolor)
+            self.win.attrset(self.colors.border)
         else:
             line_char = ' '
             xpos = 0
-            self.win.attrset(self.statuscolor)
+            self.win.attrset(self.colors.status)
 
         self.win.hline(self.frame.h - 1, xpos, line_char, self.bounds.w)
 
-        self.win.attrset(self.statuscolor)
+        self.win.attrset(self.colors.status)
 
         line = ' ' + self.statusbar_msg + ' '
         self.win.addstr(self.frame.h - 1, self.frame.w - len(line) - 2,
@@ -266,8 +232,8 @@ class View(object):
 
         if not self.visible:
             self.visible = True
-            self.win.attrset(self.textcolor)
-            self.win.bkgdset(self.textcolor)
+            self.win.attrset(self.colors.text)
+            self.win.bkgdset(self.colors.text)
             self.draw()
             self.update()
 
@@ -310,7 +276,7 @@ class View(object):
             msg = msg[:(self.bounds.w - xpos)]
 
         if attr == 0:
-            attr = self.textcolor
+            attr = self.colors.text
 
         self.win.addstr(ypos, xpos, msg, attr)
         self.needs_update = True
@@ -340,7 +306,7 @@ class View(object):
             msg += ' ' * (self.bounds.w - (x + len(msg)))
 
         if attr == 0:
-            attr = self.textcolor
+            attr = self.colors.text
 
         self.win.addstr(self.bounds.y + y, self.bounds.x + x, msg, attr)
         self.needs_update = True
@@ -350,22 +316,15 @@ class View(object):
 class TextView(View):
     '''a window for displaying text'''
 
-    def __init__(self, x, y, w, h, title=None, border=True, textcolor=0,
-                 bordercolor=0, titlecolor=0, statuscolor=0,
-                 cursorcolor=0, text=None):
+    def __init__(self, x, y, w, h, colors, title=None, border=True, text=None):
         '''initialize'''
 
-        super(TextView, self).__init__(x, y, w, h, title, border, textcolor,
-                                       bordercolor, titlecolor, statuscolor)
+        super(TextView, self).__init__(x, y, w, h, colors, title, border)
 
         if not self.has_border:
             # subtract one for statusbar
             self.bounds.h -= 1
             assert self.bounds.h > 0
-
-        self.cursorcolor = cursorcolor
-        if self.cursorcolor == 0:
-            self.cursorcolor = self.textcolor
 
         self.text = text
         if self.text is None:
@@ -404,7 +363,7 @@ class TextView(View):
     def draw_cursor(self):
         '''redraw the cursor line'''
 
-        self.printline(self.cursor, self.cursorcolor)
+        self.printline(self.cursor, self.colors.cursor)
         self.statusbar('%d,%d' % ((self.top + self.cursor + 1),
                                   (self.xoffset + 1)))
         self.needs_update = True
@@ -636,12 +595,13 @@ class TextView(View):
 class Widget(object):
     '''represents a widget'''
 
-    def __init__(self, parent, x, y):
+    def __init__(self, parent, x, y, colors):
         '''initialize'''
 
         self.parent = parent
         self.x = x
         self.y = y
+        self.colors = colors
 
     def draw(self):
         '''draw widget'''
@@ -653,25 +613,14 @@ class Widget(object):
 class Button(Widget):
     '''represents a button'''
 
-    def __init__(self, parent, x, y, label, activecolor, inactivecolor=0,
-                 hotkeycolor=0, inactivehotkeycolor=0):
+    def __init__(self, parent, x, y, colors, label):
         '''initialize'''
 
         assert label is not None
 
-        super(Button, self).__init__(parent, x, y)
+        super(Button, self).__init__(parent, x, y, colors)
 
         self.label = label
-        self.activecolor = activecolor
-        if inactivecolor == 0:
-            inactivecolor = activecolor
-        self.inactivecolor = inactivecolor
-        if hotkeycolor == 0:
-            hotkeycolor = activecolor
-        self.hotkeycolor = hotkeycolor
-        if inactivehotkeycolor == 0:
-            inactivehotkeycolor = inactivecolor
-        self.inactivehotkeycolor = inactivehotkeycolor
 
         self.active = False
         self.pushing = False
@@ -698,10 +647,10 @@ class Button(Widget):
 
         if self.active:
             text = '>' + text + '<'
-            attr = self.activecolor
+            attr = self.colors.activebutton
         else:
             text = ' ' + text + ' '
-            attr = self.inactivecolor
+            attr = self.colors.button
         add += 1
 
         xpos = self.x
@@ -713,9 +662,9 @@ class Button(Widget):
         if hotkey_pos is not None:
             # draw hotkey
             if self.active:
-                attr = self.hotkeycolor
+                attr = self.colors.activebuttonhotkey
             else:
-                attr = self.inactivehotkeycolor
+                attr = self.colors.buttonhotkey
 
             self.parent.wput(xpos + hotkey_pos + add, self.y, hotkey, attr)
 
@@ -750,10 +699,8 @@ class Button(Widget):
 class Alert(View):
     '''an alert box with buttons'''
 
-    def __init__(self, msg, title=None, border=True, textcolor=0,
-                 bordercolor=0, titlecolor=0, buttons=None, default=0,
-                 activecolor=0, inactivecolor=0, hotkeycolor=0,
-                 inactivehotkeycolor=0):
+    def __init__(self, msg, colors, title=None, border=True, buttons=None,
+                 default=0):
         '''initialize'''
 
         # determine width and height
@@ -782,8 +729,7 @@ class Alert(View):
         x = center_x(w)
         y = center_y(h)
 
-        super(Alert, self).__init__(x, y, w, h, title, border, textcolor,
-                                    bordercolor, titlecolor)
+        super(Alert, self).__init__(x, y, w, h, colors, title, border)
 
         self.text = lines
 
@@ -797,9 +743,7 @@ class Alert(View):
             # one OK button: center it
             label = '<O>K'
             x = center_x(button_width(label), self.bounds.w)
-            self.buttons = [Button(self, x, y, label, activecolor,
-                                   inactivecolor, hotkeycolor,
-                                   inactivehotkeycolor),]
+            self.buttons = [Button(self, x, y, colors, label),]
         else:
             # make and position button widgets
             self.buttons = []
@@ -817,9 +761,7 @@ class Alert(View):
 
             x = spacing
             for label in buttons:
-                button = Button(self, int(x), y, label, activecolor,
-                                inactivecolor, hotkeycolor,
-                                inactivehotkeycolor)
+                button = Button(self, int(x), y, colors, label)
                 self.buttons.append(button)
                 x += spacing + button_width(label)
 
@@ -1007,20 +949,32 @@ def ctrl(key):
 
 
 # curses color pairs suck, but that's just how it is
-def set_color(n, fg, bg):
+def new_color(fg, bg, attr=0):
+    '''Return new curses color pair'''
+
+    global COLOR_INDEX
+
+    COLOR_INDEX += 1
+    assert COLOR_INDEX < curses.COLOR_PAIRS
+
+    curses.init_pair(COLOR_INDEX, fg, bg)
+    return curses.color_pair(COLOR_INDEX) | attr
+
+
+def set_color(idx, fg, bg):
     '''set color pair'''
 
-    assert n < curses.COLOR_PAIRS
+    assert idx < curses.COLOR_PAIRS
 
-    curses.init_pair(n, fg, bg)
+    curses.init_pair(idx, fg, bg)
 
 
-def color(n):
+def color(idx, attr=0):
     '''Returns color pair'''
 
-    assert n < curses.COLOR_PAIRS
+    assert idx < curses.COLOR_PAIRS
 
-    return curses.color_pair(n)
+    return curses.color_pair(idx) | attr
 
 
 def label_hotkey(label):
@@ -1154,32 +1108,27 @@ def _unit_test():
 
     init()
 
-    # color(0) is always WHITE on BLACK (non-bold)
-    set_color(1, COLOR_WHITE, COLOR_BLACK)
-    set_color(2, COLOR_BLACK, COLOR_WHITE)
-    set_color(3, COLOR_WHITE, COLOR_BLUE)
-    set_color(4, COLOR_CYAN, COLOR_BLUE)
-    set_color(5, COLOR_CYAN, COLOR_BLACK)
-    set_color(6, COLOR_WHITE, COLOR_GREEN)
-    set_color(7, COLOR_WHITE, COLOR_BLUE)
-    set_color(8, COLOR_YELLOW, COLOR_RED)
-    set_color(9, COLOR_YELLOW, COLOR_GREEN)
-    set_color(10, COLOR_YELLOW, COLOR_BLUE)
+    colors = ColorSet(COLOR_WHITE, COLOR_BLUE, BOLD)
+    colors.border = new_color(COLOR_CYAN, COLOR_BLUE, BOLD)
+    colors.title = new_color(COLOR_YELLOW, COLOR_BLUE, BOLD)
+    colors.status = colors.border
+    colors.cursor = new_color(COLOR_WHITE, COLOR_BLACK, BOLD)
 
-    view = TextView(5, 3, 75, 20, title='hello', border=True,
-                    textcolor=color(3) | BOLD, bordercolor=color(4),
-                    titlecolor=color(5) | REVERSE, statuscolor=color(4),
-                    cursorcolor=color(1) | BOLD)
+    alert_colors = ColorSet(COLOR_BLACK, COLOR_WHITE)
+    alert_colors.title = new_color(COLOR_RED, COLOR_WHITE)
+    alert_colors.button = new_color(COLOR_WHITE, COLOR_BLUE, BOLD)
+    alert_colors.buttonhotkey = new_color(COLOR_YELLOW, COLOR_BLUE, BOLD)
+    alert_colors.activebutton = new_color(COLOR_WHITE, COLOR_GREEN, BOLD)
+    alert_colors.activebuttonhotkey = new_color(COLOR_YELLOW, COLOR_GREEN,
+                                                BOLD)
+
+    view = TextView(5, 3, 75, 20, colors, title='hello', border=True)
     view.load('views.py')
     push(view)
     view.show()
 
-    alert = Alert('Failed to load file', title='Alert', border=True,
-                  textcolor=color(2), titlecolor=color(8) | BOLD,
-                  bordercolor=0, buttons=['<C>ancel', '<O>K'], default=1,
-                  activecolor=color(6) | BOLD, inactivecolor=color(7) | BOLD,
-                  hotkeycolor=color(9) | BOLD,
-                  inactivehotkeycolor=color(10) | BOLD)
+    alert = Alert('Failed to load file', alert_colors, title='Alert',
+                  border=True, buttons=['<C>ancel', '<O>K'], default=1)
     push(alert)
     returncode = alert.runloop()
     if returncode == -1:
