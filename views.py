@@ -810,9 +810,11 @@ class Menu(View):
                 self.goto_bottom()
 
             elif key == KEY_RETURN or key == ' ':
+                self.close()
                 return self.cursor
 
             elif self.push_hotkey(key):
+                self.close()
                 return self.cursor
 
             self.update()
