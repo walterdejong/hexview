@@ -75,6 +75,53 @@ def dump_debug():
     DEBUG_LOG = []
 
 
+class ColorScheme(object):
+    '''collection of colors'''
+
+    '''
+    0 unused (default terminal colors)
+    1 text
+    2 border
+    3 title
+    4 status
+    5 selection
+    6 dialogtext
+    7 dialogborder
+    8 dialogtitle
+    9 active
+    10 inactive
+    11 activehotkey
+    12 inactivehotkey
+    '''
+
+    def __init__(self, text, border=0, title=0, status=0,
+                 active=0, inactive=0):
+        '''initialize'''
+
+        self.text = text
+
+        if border == 0:
+            border = text
+        self.border = border
+
+        if title == 0:
+            title = border
+        self.title = title
+
+        if status == 0:
+            staus = title
+        self.status = status
+
+        if active == 0:
+            active = title
+        self.active = active
+
+        if inactive == 0:
+            inactive = active
+        self.inactive = inactive
+
+
+
 class Rect(object):
     '''represents a rectangle'''
 
@@ -606,8 +653,8 @@ class Widget(object):
 class Button(Widget):
     '''represents a button'''
 
-    def __init__(self, parent, x, y, label, activecolor=0, inactivecolor=0,
-                 hotkeycolor=0):
+    def __init__(self, parent, x, y, label, activecolor, inactivecolor=0,
+                 hotkeycolor=0, inactivehotkeycolor=0):
         '''initialize'''
 
         assert label is not None
@@ -616,8 +663,15 @@ class Button(Widget):
 
         self.label = label
         self.activecolor = activecolor
+        if inactivecolor == 0:
+            inactivecolor = activecolor
         self.inactivecolor = inactivecolor
+        if hotkeycolor == 0:
+            hotkeycolor = activecolor
         self.hotkeycolor = hotkeycolor
+        if inactivehotkeycolor == 0:
+            inactivehotkeycolor = inactivecolor
+        self.inactivehotkeycolor = inactivehotkeycolor
 
         self.active = False
         self.pushing = False
@@ -658,12 +712,10 @@ class Button(Widget):
 
         if hotkey_pos is not None:
             # draw hotkey
-            attr = self.hotkeycolor
-            if attr == 0:
-                if self.active:
-                    attr = self.activecolor
-                else:
-                    attr = self.inactivecolor
+            if self.active:
+                attr = self.hotkeycolor
+            else:
+                attr = self.inactivehotkeycolor
 
             self.parent.wput(xpos + hotkey_pos + add, self.y, hotkey, attr)
 
@@ -694,12 +746,14 @@ class Button(Widget):
         time.sleep(0.1)
 
 
+
 class Alert(View):
     '''an alert box with buttons'''
 
     def __init__(self, msg, title=None, border=True, textcolor=0,
                  bordercolor=0, titlecolor=0, buttons=None, default=0,
-                 activecolor=0, inactivecolor=0, hotkeycolor=0):
+                 activecolor=0, inactivecolor=0, hotkeycolor=0,
+                 inactivehotkeycolor=0):
         '''initialize'''
 
         # determine width and height
@@ -744,7 +798,8 @@ class Alert(View):
             label = '<O>K'
             x = center_x(button_width(label), self.bounds.w)
             self.buttons = [Button(self, x, y, label, activecolor,
-                                   inactivecolor, hotkeycolor),]
+                                   inactivecolor, hotkeycolor,
+                                   inactivehotkeycolor),]
         else:
             # make and position button widgets
             self.buttons = []
@@ -763,7 +818,8 @@ class Alert(View):
             x = spacing
             for label in buttons:
                 button = Button(self, int(x), y, label, activecolor,
-                                inactivecolor, hotkeycolor)
+                                inactivecolor, hotkeycolor,
+                                inactivehotkeycolor)
                 self.buttons.append(button)
                 x += spacing + button_width(label)
 
@@ -1105,8 +1161,10 @@ def _unit_test():
     set_color(4, COLOR_CYAN, COLOR_BLUE)
     set_color(5, COLOR_CYAN, COLOR_BLACK)
     set_color(6, COLOR_WHITE, COLOR_GREEN)
-    set_color(7, COLOR_BLACK, COLOR_GREEN)
+    set_color(7, COLOR_WHITE, COLOR_BLUE)
     set_color(8, COLOR_YELLOW, COLOR_RED)
+    set_color(9, COLOR_YELLOW, COLOR_GREEN)
+    set_color(10, COLOR_YELLOW, COLOR_BLUE)
 
     view = TextView(5, 3, 75, 20, title='hello', border=True,
                     textcolor=color(3) | BOLD, bordercolor=color(4),
@@ -1119,8 +1177,9 @@ def _unit_test():
     alert = Alert('Failed to load file', title='Alert', border=True,
                   textcolor=color(2), titlecolor=color(8) | BOLD,
                   bordercolor=0, buttons=['<C>ancel', '<O>K'], default=1,
-                  activecolor=color(6) | BOLD, inactivecolor=color(7),
-                  hotkeycolor=color(6) | BOLD)
+                  activecolor=color(6) | BOLD, inactivecolor=color(7) | BOLD,
+                  hotkeycolor=color(9) | BOLD,
+                  inactivehotkeycolor=color(10) | BOLD)
     push(alert)
     returncode = alert.runloop()
     if returncode == -1:
