@@ -125,6 +125,39 @@ class Rect(object):
         self.w = w
         self.h = h
 
+    def intersects(self, rect):
+        '''Returns True if there is an intersection'''
+
+        assert isinstance(rect, Rect)
+
+        return (self.x < rect.x + rect.w and self.x + self.w > rect.x and
+                self.y < self.y + rect.h and self.y + self.h > rect.y)
+
+    def union(self, rect):
+        '''Return union of rectangles'''
+
+        r = Rect(rect.x, rect.y, 0, 0)
+        if self.x < rect.x:
+            r.x = self.x
+        if self.y < rect.y:
+            r.y = self.y
+
+        w0 = self.x + self.w
+        w1 = rect.x + rect.w
+        if w0 > w1:
+            r.w = w0 - r.x
+        else:
+            r.w = w1 - r.x
+
+        h0 = self.y + self.h
+        h1 = rect.y + rect.h
+        if h0 > h1:
+            r.h = h0 - r.y
+        else:
+            r.h = h1 - r.y
+
+        return r
+
 
 
 class View(object):
@@ -260,8 +293,7 @@ class View(object):
             self.update()
             self.visible = False
             # update all underlying views
-            # FIXME only update self.frame rect
-            update()
+            update(self.frame)
 
     def close(self):
         '''close the window
@@ -1061,6 +1093,7 @@ class MenuBar(View):
 
             if key == KEY_ESC:
                 self.clear_cursor()
+                self.update()
                 self.choice = -1
                 return -1
 
@@ -1090,6 +1123,7 @@ class MenuBar(View):
 
                     else:
                         self.clear_cursor()
+                        self.update()
                         self.choice = choice
                         return self.position
 
@@ -1585,6 +1619,7 @@ def front(view):
 
     STACK.remove(view)
     push(view)
+    view.win.touchwin()
     view.needs_update = True
     view.update()
 
@@ -1594,14 +1629,15 @@ def back(view):
 
     STACK.remove(view)
     STACK.insert(0, view)
-    update()
+    update(view.frame)
 
 
-def update():
-    '''update all windows'''
+def update(rect):
+    '''update all views touched by rect'''
 
     for view in STACK:
-        if view.visible:
+        if view.visible and view.frame.intersects(rect):
+            rect = view.frame.union(rect)
             view.win.touchwin()
             view.win.noutrefresh()
             view.needs_update = False
@@ -1649,6 +1685,11 @@ def _unit_test():
                       ])
     push(menubar)
 
+    alert = Alert('Failed to load file', alert_colors, title='Alert',
+                  buttons=['<C>ancel', '<O>K'], default=1)
+    push(alert)
+    alert.show()
+
     view = TextView(5, 3, 75, 20, colors, title='hello')
     view.load('../expandglob.py')
     push(view)
@@ -1659,9 +1700,9 @@ def _unit_test():
     selection = menubar.selection()
     debug('menu chosen selection: %d,%d %s' % (mx, my, selection))
 
-    alert = Alert('Failed to load file', alert_colors, title='Alert',
-                  buttons=['<C>ancel', '<O>K'], default=1)
+    front(alert)
     alert.runloop()
+    pop()
 
     view = top()
     selection = None
