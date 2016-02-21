@@ -260,6 +260,7 @@ class View(object):
             self.update()
             self.visible = False
             # update all underlying views
+            # FIXME only update self.frame rect
             update()
 
     def close(self):
@@ -887,11 +888,11 @@ class Menu(View):
                 self.close()
                 return -1
 
-            elif key == KEY_LEFT:
+            elif key == KEY_LEFT or key == KEY_BTAB:
                 self.close()
                 return -2
 
-            elif key == KEY_RIGHT:
+            elif key == KEY_RIGHT or key == KEY_TAB:
                 self.close()
                 return -3
 
