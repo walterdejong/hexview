@@ -821,6 +821,143 @@ class Menu(View):
 
 
 
+class MenuBar(View):
+    '''represents a menu bar'''
+
+    def __init__(self, colors, items):
+        '''initialize'''
+
+        super(MenuBar, self).__init__(0, 0, SCREEN_W, 1, colors, border=False)
+
+        # make list of MenuItems
+        self.items = [MenuItem(item) for item in items]
+
+        # make list of x positions for each item
+        self.pos = []
+        x = 2
+        for item in self.items:
+            self.pos.append(x)
+            x += len(item.text) + 2
+
+        self.cursor = 0
+
+    def draw(self):
+        '''draw menu bar'''
+
+        self.win.hline(0, 0, ' ', SCREEN_W)
+        x = 0
+        for item in self.items:
+            if x == self.cursor:
+                self.draw_cursor()
+            else:
+                self.wput(self.pos[x], 0, item.text, self.colors.menu)
+                if item.hotkey is not None:
+                    # draw hotkey
+                    self.wput(self.pos[x] + item.hotkey_pos, 0, item.hotkey,
+                              self.colors.menuhotkey)
+            x += 1
+
+    def clear_cursor(self):
+        '''draw deselected item'''
+
+        item = self.items[self.cursor]
+        self.wput(self.pos[self.cursor] - 1, 0, ' ' + item.text + ' ',
+                  self.colors.menu)
+        if item.hotkey is not None:
+            # draw hotkey
+            self.wput(self.pos[self.cursor] + item.hotkey_pos, 0, item.hotkey,
+                      self.colors.menuhotkey)
+
+    def draw_cursor(self):
+        '''draw highlighted item'''
+
+        item = self.items[self.cursor]
+        self.wput(self.pos[self.cursor] - 1, 0, ' ' + item.text + ' ',
+                  self.colors.activemenu)
+        if item.hotkey is not None:
+            # draw hotkey
+            self.wput(self.pos[self.cursor] + item.hotkey_pos, 0, item.hotkey,
+                      self.colors.activemenuhotkey)
+
+    def selection(self):
+        '''Returns plaintext of currently selected item'''
+
+        item = self.items[self.cursor]
+        return item.text
+
+    def position(self):
+        '''Returns x position of currently selected item'''
+
+        return self.pos[self.cursor] - 1
+
+    def move_left(self):
+        '''move left'''
+
+        self.clear_cursor()
+        self.cursor -= 1
+        if self.cursor < 0:
+            self.cursor += len(self.items)
+        self.draw_cursor()
+
+    def move_right(self):
+        '''move right'''
+
+        self.clear_cursor()
+        self.cursor += 1
+        if self.cursor >= len(self.items):
+            self.cursor = 0
+        self.draw_cursor()
+
+    def push_hotkey(self, key):
+        '''Returns True if the hotkey was pressed'''
+
+        key = key.upper()
+        x = 0
+        for item in self.items:
+            if item.hotkey == key:
+                if self.cursor != x:
+                    self.clear_cursor()
+                    self.cursor = x
+                    self.draw_cursor()
+                    # give visual feedback
+                    self.update()
+                    time.sleep(0.1)
+
+                return True
+
+            x += 1
+
+        return False
+
+    def runloop(self):
+        '''control the menubar
+        Returns index of selected entry or -1 on escape
+        '''
+
+        self.show()
+
+        while True:
+            key = getch()
+
+            if key == KEY_ESC:
+                return -1
+
+            elif key == KEY_LEFT:
+                self.move_left()
+
+            elif key == KEY_RIGHT:
+                self.move_right()
+
+            elif key == KEY_RETURN or key == ' ' or key == KEY_DOWN:
+                return self.cursor
+
+            elif self.push_hotkey(key):
+                return self.cursor
+
+            self.update()
+
+
+
 class Widget(object):
     '''represents a widget'''
 
@@ -1355,28 +1492,32 @@ def _unit_test():
     menu_colors.activemenu = new_color(BLACK, GREEN)
     menu_colors.activemenuhotkey = new_color(RED, GREEN)
 
+    menubar = MenuBar(menu_colors, items=['<F>ile', '<E>dit', '<O>ptions',
+                                          '<W>indow', '<H>elp'])
+    push(menubar)
+
     view = TextView(5, 3, 75, 20, colors, title='hello', border=True)
     view.load('views.py')
     push(view)
     view.show()
 
-    menu = Menu(5, 3, menu_colors, border=True, items=['<A>bout',
-                                                       '--',
-                                                       '<Q>uit'])
-    push(menu)
-
     alert = Alert('Failed to load file', alert_colors, title='Alert',
                   border=True, buttons=['<C>ancel', '<O>K'], default=1)
     push(alert)
-    returncode = alert.runloop()
-    if returncode == -1:
-        sys.exit(-1)
 
-    pop()
-    update()
+    idx = menubar.runloop()
+    xpos = menubar.position()
+
+    menu = Menu(xpos, menubar.frame.y + 1, menu_colors, border=True,
+                items=['<A>bout',
+                       '--',
+                       '<Q>uit'])
+    push(menu)
 
     menu = top()
     idx = menu.runloop()
+    menubar.clear_cursor()
+
     debug('menu chosen index: %d' % idx)
     selection = menu.selection()
     debug('menu chosen selection: %s' % selection)
