@@ -5,6 +5,7 @@
 '''(n)curses console text mode UI'''
 
 import curses
+import curses.panel
 import os
 import sys
 import time
@@ -56,8 +57,6 @@ KEY_TABLE = {'0x1b': KEY_ESC, '0x0a': KEY_RETURN,
 COLOR_INDEX = 0
 BOLD = curses.A_BOLD
 REVERSE = curses.A_REVERSE
-
-STACK = []
 
 REGEX_HOTKEY = re.compile(r'.*<((Ctrl-)?[!-~])>.*$')
 
@@ -186,50 +185,36 @@ class View(object):
         assert self.bounds.w > 0
         assert self.bounds.h > 0
 
-        self.visible = False
+        # FIXME take out visible
+        self.visible = True
+        # FIXME take out needs_update
         self.needs_update = False
         self.statusbar_msg = None
 
+        # make curses window
         self.win = curses.newwin(h, w, y, x)
         self.win.scrollok(False)
         self.win.attrset(self.colors.text)
         self.win.bkgdset(self.colors.text)
+        # make curses panel for window
+        self.panel = curses.panel.new_panel(self.win)
+        # curses panel references this View
+        self.panel.set_userptr(self)
 
     def show(self):
         '''show the window'''
 
-        if self.visible:
-            return
-
-        if len(STACK) > 0:
-            STACK[-1].lose_focus()
-
-        self.visible = True
         self.draw()
-        self.update()
-        STACK.append(self)
+        self.panel.show()
 
     def hide(self):
         '''hide the window'''
 
-        if not self.visible:
-            return
-
-        self.win.attrset(curses.color_pair(0))
-        self.win.bkgdset(curses.color_pair(0))
-        self.win.clear()
-        self.needs_update = True
-        self.update()
-        self.visible = False
-
-        STACK.pop()
-
-        # update all underlying views
-        update(self.frame)
+        self.panel.hide()
 
     def close(self):
         '''close the window
-        This is the same as hide(), we do not destroy the view
+        This is the same as hide(), we do not destroy the window
         '''
 
         self.hide()
@@ -240,35 +225,17 @@ class View(object):
     def front(self):
         '''move view to front'''
 
-        assert len(STACK) > 0
-
-        if STACK[-1] == self:
-            # we're already front
-            return
-
-        # previous view loses focus
-        STACK[-1].lose_focus()
-
-        STACK.remove(self)
-        STACK.append(self)
-
+        self.panel.top()
         self.gain_focus()
 
     def back(self):
         '''move view to back'''
 
-        assert len(STACK) > 0
-
-        if STACK[0] == self:
-            # already back
-            return
-
         self.lose_focus()
+        self.panel.bottom()
 
-        STACK.remove(self)
-        STACK.insert(0, self)
-
-        STACK[-1].gain_focus()
+        top = top_view()
+        top.gain_focus()
 
     def gain_focus(self):
         '''event: we got focus'''
@@ -367,6 +334,9 @@ class View(object):
     def update(self):
         '''redraw window'''
 
+        # FIXME take out this whole method
+        return
+
         if self.needs_update and self.visible:
             self.win.refresh()
             self.needs_update = False
@@ -394,7 +364,7 @@ class View(object):
             attr = self.colors.text
 
         self.win.addstr(ypos, xpos, msg, attr)
-        self.needs_update = True
+        self.win.noutrefresh()
 
     def wprint(self, x, y, msg, attr=0):
         '''print message in window at relative position
@@ -431,7 +401,7 @@ class View(object):
             self.win.addstr(self.bounds.y + y, self.bounds.x + x, msg, attr)
         else:
             self.win.insstr(self.bounds.y + y, self.bounds.x + x, msg, attr)
-        self.needs_update = True
+        self.win.noutrefresh()
 
     def hline(self, x, y, char, length):
         '''draw a horizontal line in the view'''
@@ -1537,6 +1507,10 @@ def getch():
     Returns key as a string value
     '''
 
+    # update the screen
+    curses.panel.update_panels()
+    curses.doupdate()
+
     key = SCREEN.getch()
 
     ## DEBUG
@@ -1674,13 +1648,12 @@ def center_y(height, area=0):
     return int(y + 0.5)
 
 
-def topview():
+def top_view():
     '''Return top view'''
 
-    try:
-        return STACK[-1]
-    except IndexError:
-        return None
+    panel = curses.panel.top_panel()
+    view = panel.userptr()
+    return view
 
 
 def update(rect):
@@ -1749,7 +1722,7 @@ def _unit_test():
 
     # main loop
     while True:
-        view = topview()
+        view = top_view()
         if view is None:
             break
 
