@@ -185,10 +185,6 @@ class View(object):
         assert self.bounds.w > 0
         assert self.bounds.h > 0
 
-        # FIXME take out visible
-        self.visible = True
-        # FIXME take out needs_update
-        self.needs_update = False
         self.statusbar_msg = None
 
         # make curses window
@@ -265,7 +261,6 @@ class View(object):
         self.win.attrset(self.colors.text)
         self.win.bkgdset(self.colors.text)
         self.win.clear()
-        self.needs_update = True
 
         if self.has_border:
             self.win.attrset(self.colors.border)
@@ -294,8 +289,6 @@ class View(object):
         self.win.addstr(0, (self.frame.w - len(title_str)) / 2,
                         title_str)
 
-        self.needs_update = True
-
     def draw_statusbar(self):
         '''draw the status bar'''
 
@@ -320,8 +313,6 @@ class View(object):
         self.win.addstr(self.frame.h - 1, self.frame.w - len(line) - 2,
                         line)
 
-        self.needs_update = True
-
     def statusbar(self, msg):
         '''update statusbar'''
 
@@ -330,16 +321,6 @@ class View(object):
 
         self.statusbar_msg = msg
         self.draw_statusbar()
-
-    def update(self):
-        '''redraw window'''
-
-        # FIXME take out this whole method
-        return
-
-        if self.needs_update and self.visible:
-            self.win.refresh()
-            self.needs_update = False
 
     def wput(self, x, y, msg, attr=0):
         '''print message in window at relative position
@@ -419,7 +400,6 @@ class View(object):
         # override this method, but do call super()
 
         self.gain_focus()
-        self.update()
 
     def key_event(self, key):
         '''process keyboard input'''
@@ -475,13 +455,10 @@ class TextView(View):
 
             y += 1
 
-        self.needs_update = True
-
     def clear_cursor(self):
         '''erase the cursor'''
 
         self.printline(self.cursor)
-        self.needs_update = True
 
     def draw_cursor(self):
         '''redraw the cursor line'''
@@ -489,7 +466,6 @@ class TextView(View):
         self.printline(self.cursor, self.colors.cursor)
         self.statusbar('%d,%d' % ((self.top + self.cursor + 1),
                                   (self.xoffset + 1)))
-        self.needs_update = True
 
     def printline(self, y, attr=0):
         '''print a single line'''
@@ -780,7 +756,6 @@ class TextView(View):
             # don't know what to do with this key
             return
 
-        self.update()
 
 
 class MenuItem(object):
@@ -851,8 +826,6 @@ class Menu(View):
                                   self.colors.menuhotkey)
             y += 1
 
-        self.needs_update = True
-
     def clear_cursor(self):
         '''erase the cursor'''
 
@@ -863,8 +836,6 @@ class Menu(View):
             self.wput(1 + item.hotkey_pos, self.cursor, item.hotkey,
                       self.colors.menuhotkey)
 
-        self.needs_update = True
-
     def draw_cursor(self):
         '''draw highlighted cursor line'''
 
@@ -874,8 +845,6 @@ class Menu(View):
             # draw hotkey
             self.wput(1 + item.hotkey_pos, self.cursor, item.hotkey,
                       self.colors.activemenuhotkey)
-
-        self.needs_update = True
 
     def selection(self):
         '''Returns plaintext of currently selected item'''
@@ -947,7 +916,7 @@ class Menu(View):
                     self.cursor = y
                     self.draw_cursor()
                     # give visual feedback
-                    self.update()
+                    curses.doupdate()
                     time.sleep(0.1)
 
                 return True
@@ -996,9 +965,7 @@ class Menu(View):
             elif self.push_hotkey(key):
                 self.close()
                 return self.cursor
-    
-            self.update()
-    
+
 
 
 class MenuBar(View):
@@ -1123,7 +1090,7 @@ class MenuBar(View):
                     self.cursor = x
                     self.draw_cursor()
                     # give visual feedback
-                    self.update()
+                    curses.doupdate()
                     time.sleep(0.1)
 
                 return True
@@ -1136,14 +1103,12 @@ class MenuBar(View):
         '''run the menu bar'''
 
         self.gain_focus()
-        self.update()
 
         while True:
             key = getch()
 
             if key == KEY_ESC:
                 self.clear_cursor()
-                self.update()
                 self.choice = -1
                 return
     
@@ -1174,15 +1139,10 @@ class MenuBar(View):
     
                     else:
                         self.lose_focus()
-                        self.update()
                         self.choice = choice
                         # TODO invoke action or return choice?
                         return choice
-    
-                    self.update()
-    
-            self.update()
-    
+
 
 
 class Widget(object):
@@ -1270,12 +1230,12 @@ class Button(Widget):
         # animate button
         self.pushing = True
         self.parent.draw()
-        self.parent.update()
+        curses.doupdate()
         time.sleep(0.1)
 
         self.pushing = False
         self.parent.draw()
-        self.parent.update()
+        curses.doupdate()
         time.sleep(0.1)
 
 
@@ -1378,8 +1338,6 @@ class Alert(View):
         for button in self.buttons:
             button.draw()
 
-        self.needs_update = True
-
     def move_right(self):
         '''select button to the right'''
 
@@ -1463,8 +1421,6 @@ class Alert(View):
             elif self.push_hotkey(key):
                 self.close()
                 return self.cursor
-
-            self.update()
 
 
 
@@ -1654,19 +1610,6 @@ def top_view():
     panel = curses.panel.top_panel()
     view = panel.userptr()
     return view
-
-
-def update(rect):
-    '''update all views touched by rect'''
-
-    for view in STACK:
-        if view.visible and view.frame.intersects(rect):
-            rect = view.frame.union(rect)
-            view.win.touchwin()
-            view.win.noutrefresh()
-            view.needs_update = False
-
-    curses.doupdate()
 
 
 def _unit_test():
