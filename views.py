@@ -190,6 +190,7 @@ class View(object):
         assert self.bounds.w > 0
         assert self.bounds.h > 0
 
+        self.has_focus = False
         self.statusbar_msg = None
 
         # make curses window
@@ -241,22 +242,17 @@ class View(object):
     def gain_focus(self):
         '''event: we got focus'''
 
+        self.has_focus = True
         self.draw_cursor()
 
     def lose_focus(self):
         '''event: focus lost'''
 
-        self.clear_cursor()
+        self.has_focus = False
+        self.draw_cursor()
 
     def draw_cursor(self):
         '''draw cursor'''
-
-        # override this method
-        pass
-
-    # FIXME use has_focus, and remove this method
-    def clear_cursor(self):
-        '''erase cursor'''
 
         # override this method
         pass
@@ -457,17 +453,21 @@ class TextView(View):
 
             y += 1
 
+    def draw_cursor(self):
+        '''redraw the cursor line'''
+
+        if self.has_focus:
+            # print line in cursor color
+            self.printline(self.cursor, self.colors.cursor)
+        else:
+            self.printline(self.cursor)
+        self.statusbar('%d,%d' % ((self.top + self.cursor + 1),
+                                  (self.xoffset + 1)))
+
     def clear_cursor(self):
         '''erase the cursor'''
 
         self.printline(self.cursor)
-
-    def draw_cursor(self):
-        '''redraw the cursor line'''
-
-        self.printline(self.cursor, self.colors.cursor)
-        self.statusbar('%d,%d' % ((self.top + self.cursor + 1),
-                                  (self.xoffset + 1)))
 
     def printline(self, y, attr=0):
         '''print a single line'''
@@ -814,7 +814,7 @@ class Menu(View):
 
         y = 0
         for item in self.items:
-            if y == self.cursor:
+            if y == self.cursor and self.has_focus:
                 # highlighted entry
                 self.draw_cursor()
             else:
@@ -830,6 +830,23 @@ class Menu(View):
                                   self.colors.menuhotkey)
             y += 1
 
+    def draw_cursor(self):
+        '''draw highlighted cursor line'''
+
+        if self.has_focus:
+            attr = self.colors.activemenu
+            attr_hotkey = self.colors.activemenuhotkey
+        else:
+            attr = self.colors.menu
+            attr_hotkey = self.colors.menuhotkey
+
+        item = self.items[self.cursor]
+        self.wprint(0, self.cursor, ' ' + item.text, self.colors.activemenu)
+        if item.hotkey is not None:
+            # draw hotkey
+            self.wput(1 + item.hotkey_pos, self.cursor, item.hotkey,
+                      self.colors.activemenuhotkey)
+
     def clear_cursor(self):
         '''erase the cursor'''
 
@@ -839,16 +856,6 @@ class Menu(View):
             # draw hotkey
             self.wput(1 + item.hotkey_pos, self.cursor, item.hotkey,
                       self.colors.menuhotkey)
-
-    def draw_cursor(self):
-        '''draw highlighted cursor line'''
-
-        item = self.items[self.cursor]
-        self.wprint(0, self.cursor, ' ' + item.text, self.colors.activemenu)
-        if item.hotkey is not None:
-            # draw hotkey
-            self.wput(1 + item.hotkey_pos, self.cursor, item.hotkey,
-                      self.colors.activemenuhotkey)
 
     def selection(self):
         '''Returns plaintext of currently selected item'''
@@ -933,6 +940,7 @@ class Menu(View):
         '''run a menu'''
 
         self.show()
+        self.front()
 
         while True:
             key = getch()
@@ -1014,7 +1022,8 @@ class MenuBar(View):
         self.win.hline(0, 0, ' ', SCREEN_W)
         x = 0
         for header in self.headers:
-            if x == self.cursor:
+            if x == self.cursor and self.has_focus:
+                # draw highlighted entry
                 self.draw_cursor()
             else:
                 self.wput(self.pos[x], 0, header.text, self.colors.menu)
@@ -1024,9 +1033,15 @@ class MenuBar(View):
                               header.hotkey, self.colors.menuhotkey)
             x += 1
 
-    def clear_cursor(self):
-        attr = self.colors.menu
-        attr_hotkey = self.colors.menuhotkey
+    def draw_cursor(self):
+        '''draw the cursor (highlighted when in focus)'''
+
+        if self.has_focus:
+            attr = self.colors.activemenu
+            attr_hotkey = self.colors.activemenuhotkey
+        else:
+            attr = self.colors.menu
+            attr_hotkey = self.colors.menuhotkey
 
         header = self.headers[self.cursor]
         self.wput(self.pos[self.cursor] - 1, 0, ' ' + header.text + ' ', attr)
@@ -1035,11 +1050,11 @@ class MenuBar(View):
             self.wput(self.pos[self.cursor] + header.hotkey_pos, 0,
                       header.hotkey, attr_hotkey)
 
-    def draw_cursor(self):
-        '''draw the cursor (highlighted when in focus)'''
+    def clear_cursor(self):
+        '''erase cursor'''
 
-        attr = self.colors.activemenu
-        attr_hotkey = self.colors.activemenuhotkey
+        attr = self.colors.menu
+        attr_hotkey = self.colors.menuhotkey
 
         header = self.headers[self.cursor]
         self.wput(self.pos[self.cursor] - 1, 0, ' ' + header.text + ' ', attr)
@@ -1164,6 +1179,8 @@ class Widget(object):
 
         pass
 
+    # FIXME can widgets gain and lose focus?
+
 
 
 class Button(Widget):
@@ -1178,6 +1195,7 @@ class Button(Widget):
 
         self.label = label
 
+        # FIXME change active to has_focus?
         self.active = False
         self.pushing = False
 
