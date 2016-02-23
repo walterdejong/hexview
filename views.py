@@ -195,9 +195,108 @@ class View(object):
         self.win.attrset(self.colors.text)
         self.win.bkgdset(self.colors.text)
 
+    def show(self):
+        '''show the window'''
+
+        if self.visible:
+            return
+
+        if len(STACK) > 0:
+            STACK[-1].lose_focus()
+
+        self.visible = True
+        self.draw()
+        self.update()
+        STACK.append(self)
+
+    def hide(self):
+        '''hide the window'''
+
+        if not self.visible:
+            return
+
+        self.win.attrset(curses.color_pair(0))
+        self.win.bkgdset(curses.color_pair(0))
+        self.win.clear()
+        self.needs_update = True
+        self.update()
+        self.visible = False
+
+        STACK.pop()
+
+        # update all underlying views
+        update(self.frame)
+
+    def close(self):
+        '''close the window
+        This is the same as hide(), we do not destroy the view
+        '''
+
+        self.hide()
+
+    # front() and back() change the position in the stack
+    # Note that it has nothing to do with showing or hiding a view,
+    # just its focus
+    def front(self):
+        '''move view to front'''
+
+        assert len(STACK) > 0
+
+        if STACK[-1] == self:
+            # we're already front
+            return
+
+        # previous view loses focus
+        STACK[-1].lose_focus()
+
+        STACK.remove(self)
+        STACK.append(self)
+
+        self.gain_focus()
+
+    def back(self):
+        '''move view to back'''
+
+        assert len(STACK) > 0
+
+        if STACK[0] == self:
+            # already back
+            return
+
+        self.lose_focus()
+
+        STACK.remove(self)
+        STACK.insert(0, self)
+
+        STACK[-1].gain_focus()
+
+    def gain_focus(self):
+        '''event: we got focus'''
+
+        self.draw_cursor()
+
+    def lose_focus(self):
+        '''event: focus lost'''
+
+        self.clear_cursor()
+
+    def draw_cursor(self):
+        '''draw cursor'''
+
+        # override this method
+        pass
+
+    def clear_cursor(self):
+        '''erase cursor'''
+
+        # override this method
+        pass
+
     def draw(self):
         '''draw the window'''
 
+        self.win.attrset(self.colors.text)
+        self.win.bkgdset(self.colors.text)
         self.win.clear()
         self.needs_update = True
 
@@ -272,36 +371,6 @@ class View(object):
             self.win.refresh()
             self.needs_update = False
 
-    def show(self):
-        '''show the window'''
-
-        if not self.visible:
-            self.visible = True
-            self.win.attrset(self.colors.text)
-            self.win.bkgdset(self.colors.text)
-            self.draw()
-            self.update()
-
-    def hide(self):
-        '''hide the window'''
-
-        if self.visible:
-            self.win.attrset(curses.color_pair(0))
-            self.win.bkgdset(curses.color_pair(0))
-            self.win.clear()
-            self.needs_update = True
-            self.update()
-            self.visible = False
-            # update all underlying views
-            update(self.frame)
-
-    def close(self):
-        '''close the window
-        This is the same as hide(), we do not destroy the view
-        '''
-
-        self.hide()
-
     def wput(self, x, y, msg, attr=0):
         '''print message in window at relative position
         Does not clear to end of line
@@ -373,6 +442,21 @@ class View(object):
                 return
 
         self.win.hline(y + self.bounds.y, x + self.bounds.x, char, length)
+
+    def runloop(self):
+        '''view runloop processes user input and events'''
+
+        # override this method, but do call super()
+
+        self.gain_focus()
+        self.update()
+
+    def key_event(self, key):
+        '''process keyboard input'''
+
+        # override this method to react to keyboard input
+        pass
+
 
 
 class TextView(View):
@@ -690,46 +774,43 @@ class TextView(View):
 
         self.update_scrollbar()
 
-    def runloop(self):
-        '''control the textview'''
+    def key_event(self, key):
+        '''process keyboard input'''
 
-        self.show()
+        if key == KEY_ESC:
+            # FIXME tie Esc to menubar?
+            self.close()
+            return KEY_ESC
 
-        while True:
-            key = getch()
+        elif key == KEY_UP:
+            self.move_up()
 
-            if key == KEY_ESC:
-                self.close()
-                return KEY_ESC
+        elif key == KEY_DOWN:
+            self.move_down()
 
-            elif key == KEY_UP:
-                self.move_up()
+        elif key == KEY_LEFT:
+            self.move_left()
 
-            elif key == KEY_DOWN:
-                self.move_down()
+        elif key == KEY_RIGHT:
+            self.move_right()
 
-            elif key == KEY_LEFT:
-                self.move_left()
+        elif key == KEY_PAGEUP:
+            self.pageup()
 
-            elif key == KEY_RIGHT:
-                self.move_right()
+        elif key == KEY_PAGEDOWN:
+            self.pagedown()
 
-            elif key == KEY_PAGEUP:
-                self.pageup()
+        elif key == KEY_HOME:
+            self.goto_top()
 
-            elif key == KEY_PAGEDOWN:
-                self.pagedown()
+        elif key == KEY_END:
+            self.goto_bottom()
 
-            elif key == KEY_HOME:
-                self.goto_top()
+        else:
+            # don't know what to do with this key
+            return
 
-            elif key == KEY_END:
-                self.goto_bottom()
-
-            else:
-                return key
-
-            self.update()
+        self.update()
 
 
 class MenuItem(object):
@@ -906,9 +987,7 @@ class Menu(View):
         return False
 
     def runloop(self):
-        '''control the menu
-        Returns index of selected entry or -1 on escape
-        '''
+        '''run a menu'''
 
         self.show()
 
@@ -919,37 +998,37 @@ class Menu(View):
                 key.upper() == self.closekey):
                 self.close()
                 return -1
-
+    
             elif key == KEY_LEFT or key == KEY_BTAB:
                 self.close()
                 return -2
-
+    
             elif key == KEY_RIGHT or key == KEY_TAB:
                 self.close()
                 return -3
-
+    
             elif key == KEY_UP:
                 self.move_up()
-
+    
             elif key == KEY_DOWN:
                 self.move_down()
-
+    
             elif key == KEY_PAGEUP or key == KEY_HOME:
                 self.goto_top()
-
+    
             elif key == KEY_PAGEDOWN or key == KEY_END:
                 self.goto_bottom()
-
+    
             elif key == KEY_RETURN or key == ' ':
                 self.close()
                 return self.cursor
-
+    
             elif self.push_hotkey(key):
                 self.close()
                 return self.cursor
-
+    
             self.update()
-
+    
 
 
 class MenuBar(View):
@@ -1005,26 +1084,28 @@ class MenuBar(View):
             x += 1
 
     def clear_cursor(self):
-        '''draw deselected item'''
+        attr = self.colors.menu
+        attr_hotkey = self.colors.menuhotkey
 
         header = self.headers[self.cursor]
-        self.wput(self.pos[self.cursor] - 1, 0, ' ' + header.text + ' ',
-                  self.colors.menu)
+        self.wput(self.pos[self.cursor] - 1, 0, ' ' + header.text + ' ', attr)
         if header.hotkey is not None:
             # draw hotkey
             self.wput(self.pos[self.cursor] + header.hotkey_pos, 0,
-                      header.hotkey, self.colors.menuhotkey)
+                      header.hotkey, attr_hotkey)
 
     def draw_cursor(self):
-        '''draw highlighted item'''
+        '''draw the cursor (highlighted when in focus)'''
+
+        attr = self.colors.activemenu
+        attr_hotkey = self.colors.activemenuhotkey
 
         header = self.headers[self.cursor]
-        self.wput(self.pos[self.cursor] - 1, 0, ' ' + header.text + ' ',
-                  self.colors.activemenu)
+        self.wput(self.pos[self.cursor] - 1, 0, ' ' + header.text + ' ', attr)
         if header.hotkey is not None:
             # draw hotkey
             self.wput(self.pos[self.cursor] + header.hotkey_pos, 0,
-                      header.hotkey, self.colors.activemenuhotkey)
+                      header.hotkey, attr_hotkey)
 
     def selection(self):
         '''Returns plaintext of selected item, or None if none'''
@@ -1082,11 +1163,10 @@ class MenuBar(View):
         return False
 
     def runloop(self):
-        '''control the menubar
-        Returns index of selected entry or -1 on escape
-        '''
+        '''run the menu bar'''
 
-        self.show()
+        self.gain_focus()
+        self.update()
 
         while True:
             key = getch()
@@ -1095,42 +1175,44 @@ class MenuBar(View):
                 self.clear_cursor()
                 self.update()
                 self.choice = -1
-                return -1
-
+                return
+    
             elif key == KEY_LEFT:
                 self.move_left()
-
+    
             elif key == KEY_RIGHT:
                 self.move_right()
-
+    
             elif (key == KEY_RETURN or key == ' ' or key == KEY_DOWN or
                   self.push_hotkey(key)):
-                # activate the menua
+                # activate the menu
                 while True:
+                    self.menus[self.cursor].show()
                     choice = self.menus[self.cursor].runloop()
                     if choice == -1:
                         # escape: closed menu
                         self.choice = -1
                         break
-
+    
                     elif choice == -2:
                         # navigate left and open menu
                         self.move_left()
-
+    
                     elif choice == -3:
                         # navigate right and open menu
                         self.move_right()
-
+    
                     else:
-                        self.clear_cursor()
+                        self.lose_focus()
                         self.update()
                         self.choice = choice
-                        return self.position
-
+                        # TODO invoke action or return choice?
+                        return choice
+    
                     self.update()
-
+    
             self.update()
-
+    
 
 
 class Widget(object):
@@ -1386,9 +1468,9 @@ class Alert(View):
         return False
 
     def runloop(self):
-        '''control the alertbox'''
-
-        self.show()
+        '''run the alert dialog
+        Returns button choice or -1 on escape
+        '''
 
         while True:
             key = getch()
@@ -1409,6 +1491,7 @@ class Alert(View):
                 self.move_left()
 
             elif self.push_hotkey(key):
+                self.close()
                 return self.cursor
 
             self.update()
@@ -1455,6 +1538,13 @@ def getch():
     '''
 
     key = SCREEN.getch()
+
+    ## DEBUG
+    if key == 17:
+        # Ctrl-Q is hardwired to bail out
+        terminate()
+        sys.exit(0)
+
     if key >= ord(' ') and key <= ord('~'):
         # ascii keys are returned as string
         return chr(key)
@@ -1584,52 +1674,13 @@ def center_y(height, area=0):
     return int(y + 0.5)
 
 
-def push(view):
-    '''push a window onto the stack'''
-
-    assert isinstance(view, View)
-
-    STACK.append(view)
-
-
-def pop():
-    '''remove window from stack'''
-
-    try:
-        view = STACK.pop()
-    except IndexError:
-        return
-    else:
-        view.close()
-
-
-def top():
+def topview():
     '''Return top view'''
 
     try:
         return STACK[-1]
     except IndexError:
         return None
-
-
-def front(view):
-    '''Move view to front'''
-
-    assert isinstance(view, View)
-
-    STACK.remove(view)
-    push(view)
-    view.win.touchwin()
-    view.needs_update = True
-    view.update()
-
-
-def back(view):
-    '''Move view to back'''
-
-    STACK.remove(view)
-    STACK.insert(0, view)
-    update(view.frame)
 
 
 def update(rect):
@@ -1670,7 +1721,7 @@ def _unit_test():
     menu_colors.activemenuhotkey = new_color(RED, GREEN)
 
     menubar = MenuBar(menu_colors, 
-                      [('<~>', ['<A>bout', '--', '<Q>uit']),
+                      [('<=>', ['<A>bout', '--', '<Q>uit']),
                        ('<F>ile', ['<N>ew', '<L>oad', '<S>ave', '--',
                                    '<P>rint']),
                        ('<E>dit', ['<U>ndo', 'Cut', '<C>opy', '<P>aste',
@@ -1683,49 +1734,42 @@ def _unit_test():
                        ('<H>elp', ['<I>ntroduction', '<S>earch',
                                    '<O>nline help'])
                       ])
-    push(menubar)
-
-    alert = Alert('Failed to load file', alert_colors, title='Alert',
-                  buttons=['<C>ancel', '<O>K'], default=1)
-    push(alert)
-    alert.show()
+    menubar.show()
 
     view = TextView(5, 3, 75, 20, colors, title='hello')
     view.load('../expandglob.py')
-    push(view)
     view.show()
 
-    menubar.runloop()
-    mx, my = menubar.position()
-    selection = menubar.selection()
-    debug('menu chosen selection: %d,%d %s' % (mx, my, selection))
+    view.front()
 
-    front(alert)
-    alert.runloop()
-    pop()
+    alert = Alert('Failed to load file', alert_colors, title='Alert',
+                  buttons=['<C>ancel', '<O>K'], default=1)
+    alert.show()
+    choice = alert.runloop()
 
-    view = top()
-    selection = None
+    # main loop
     while True:
-        key = view.runloop()
+        view = topview()
+        if view is None:
+            break
+
+        key = getch()
+        if key == 'Ctrl-Q':
+            break
 
         if key == KEY_ESC:
-            break
+            # the escape key is hardwired to activate the menubar
+            # whatever non-modal view if now on top
+            menubar.runloop()
+            continue
 
-        elif key == ctrl('Q'):
-            break
+        # TODO if KEY_RESIZE: resize_event()
 
-        elif key == KEY_RETURN:
-            selection = view.selection()
-            break
+        # TODO check menu hotkeys first
 
-        view.update()
+        view.key_event(key)
 
-    view.close()
     terminate()
-
-    if selection != None:
-        print 'selection was: "%s"' % selection
 
 
 
