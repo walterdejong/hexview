@@ -64,6 +64,11 @@ REGEX_HOTKEY = re.compile(r'.*<((Ctrl-)?[!-~])>.*$')
 DEBUG_LOG = []
 
 
+# program states
+RETURN_TO_PREVIOUS = -1
+GOTO_MENUBAR = 1
+
+
 def debug(msg):
     '''keep message in debug log'''
 
@@ -249,6 +254,7 @@ class View(object):
         # override this method
         pass
 
+    # FIXME use has_focus, and remove this method
     def clear_cursor(self):
         '''erase cursor'''
 
@@ -395,17 +401,13 @@ class View(object):
         self.win.hline(y + self.bounds.y, x + self.bounds.x, char, length)
 
     def runloop(self):
-        '''view runloop processes user input and events'''
+        '''view runloop processes user input and events
+        Returns a choice for modal dialogs or
+        a program state code (like GOTO_MENUBAR)
+        '''
 
-        # override this method, but do call super()
-
-        self.gain_focus()
-
-    def key_event(self, key):
-        '''process keyboard input'''
-
-        # override this method to react to keyboard input
-        pass
+        # override this method
+        return -1
 
 
 
@@ -720,41 +722,43 @@ class TextView(View):
 
         self.update_scrollbar()
 
-    def key_event(self, key):
-        '''process keyboard input'''
+    def runloop(self):
+        '''run main input loop for this view
+        Returns a new program state code
+        '''
 
-        if key == KEY_ESC:
-            # FIXME tie Esc to menubar?
-            self.close()
-            return KEY_ESC
+        while True:
+            key = getch()
 
-        elif key == KEY_UP:
-            self.move_up()
+            if key == KEY_ESC:
+                self.lose_focus()
+                return GOTO_MENUBAR
 
-        elif key == KEY_DOWN:
-            self.move_down()
+            elif key == KEY_UP:
+                self.move_up()
 
-        elif key == KEY_LEFT:
-            self.move_left()
+            elif key == KEY_DOWN:
+                self.move_down()
 
-        elif key == KEY_RIGHT:
-            self.move_right()
+            elif key == KEY_LEFT:
+                self.move_left()
 
-        elif key == KEY_PAGEUP:
-            self.pageup()
+            elif key == KEY_RIGHT:
+                self.move_right()
 
-        elif key == KEY_PAGEDOWN:
-            self.pagedown()
+            elif key == KEY_PAGEUP:
+                self.pageup()
 
-        elif key == KEY_HOME:
-            self.goto_top()
+            elif key == KEY_PAGEDOWN:
+                self.pagedown()
 
-        elif key == KEY_END:
-            self.goto_bottom()
+            elif key == KEY_HOME:
+                self.goto_top()
 
-        else:
-            # don't know what to do with this key
-            return
+            elif key == KEY_END:
+                self.goto_bottom()
+
+            # TODO check global app hotkeys
 
 
 
@@ -1108,9 +1112,9 @@ class MenuBar(View):
             key = getch()
 
             if key == KEY_ESC:
-                self.clear_cursor()
                 self.choice = -1
-                return
+                self.back()
+                return RETURN_TO_PREVIOUS
     
             elif key == KEY_LEFT:
                 self.move_left()
@@ -1138,9 +1142,8 @@ class MenuBar(View):
                         self.move_right()
     
                     else:
-                        self.lose_focus()
+                        self.back()
                         self.choice = choice
-                        # TODO invoke action or return choice?
                         return choice
 
 
@@ -1475,6 +1478,8 @@ def getch():
         terminate()
         sys.exit(0)
 
+    # TODO if key == KEY_RESIZE: resize_event() for all panels
+
     if key >= ord(' ') and key <= ord('~'):
         # ascii keys are returned as string
         return chr(key)
@@ -1669,21 +1674,14 @@ def _unit_test():
         if view is None:
             break
 
-        key = getch()
-        if key == 'Ctrl-Q':
-            break
+        event = view.runloop()
 
-        if key == KEY_ESC:
-            # the escape key is hardwired to activate the menubar
-            # whatever non-modal view if now on top
-            menubar.runloop()
+        if event == RETURN_TO_PREVIOUS:
             continue
 
-        # TODO if KEY_RESIZE: resize_event()
-
-        # TODO check menu hotkeys first
-
-        view.key_event(key)
+        if event == GOTO_MENUBAR:
+            # activate menubar by making it front
+            menubar.front()
 
     terminate()
 
