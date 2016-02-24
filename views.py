@@ -410,7 +410,8 @@ class View(object):
 class TextView(View):
     '''a window for displaying text'''
 
-    def __init__(self, x, y, w, h, colors, title=None, border=True, text=None):
+    def __init__(self, x, y, w, h, colors, title=None, border=True, text=None,
+                 tabsize=4):
         '''initialize'''
 
         super(TextView, self).__init__(x, y, w, h, colors, title, border)
@@ -424,6 +425,7 @@ class TextView(View):
         if self.text is None:
             self.text = []
 
+        self.tabsize = tabsize
         self.top = 0
         self.cursor = 0
         self.xoffset = 0
@@ -472,7 +474,14 @@ class TextView(View):
     def printline(self, y, attr=0):
         '''print a single line'''
 
-        self.wprint(0, y, self.text[self.top + y][self.xoffset:], attr)
+        line = self.text[self.top + y]
+        # replace tabs by spaces
+        # This is because curses will display them too big
+        line = line.replace('\t', ' ' * self.tabsize)
+        # take x-scrolling into account
+        line = line[self.xoffset:]
+
+        self.wprint(0, y, line, attr)
 
     def update_scrollbar(self):
         '''update scrollbar position'''
@@ -1676,7 +1685,7 @@ def _unit_test():
     menubar.show()
 
     view = TextView(5, 3, 75, 20, colors, title='hello')
-    view.load('../expandglob.py')
+    view.load('../../round.c')
     view.show()
 
     view.front()
