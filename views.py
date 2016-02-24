@@ -65,8 +65,12 @@ DEBUG_LOG = []
 
 
 # program states
-RETURN_TO_PREVIOUS = -1
-GOTO_MENUBAR = 1
+(RETURN_TO_PREVIOUS,
+ GOTO_MENUBAR,
+ MOVE_LEFT,
+ MOVE_RIGHT,
+ ENTER) = range(-1, 4)  # enums start at -1
+
 
 
 def debug(msg):
@@ -1182,13 +1186,31 @@ class Widget(object):
         self.x = x
         self.y = y
         self.colors = colors
+        self.has_focus = False
 
     def draw(self):
         '''draw widget'''
 
+        # override this method
         pass
 
-    # FIXME can widgets gain and lose focus?
+    def gain_focus(self):
+        '''we get focus'''
+
+        self.has_focus = True
+        self.draw_cursor()
+    
+    def lose_focus(self):
+        '''we lose focus'''
+
+        self.has_focus = False
+        self.draw_cursor()
+
+    def draw_cursor(self):
+        '''draw cursor'''
+
+        # override this method
+        pass
 
 
 
@@ -1202,24 +1224,29 @@ class Button(Widget):
 
         super(Button, self).__init__(parent, x, y, colors)
 
-        self.label = label
+        self.hotkey, self.hotkey_pos, self.label = label_hotkey(label)
 
-        # FIXME change active to has_focus?
-        self.active = False
         self.pushing = False
 
     def draw(self):
         '''draw button'''
 
-        hotkey, hotkey_pos, label = label_hotkey(self.label)
+        self.draw_cursor()
+
+    def draw_cursor(self):
+        '''draw button'''
+
+        # the cursor _is_ the button
+        # and the button is the cursor
+
         add = 1
-        text = ' ' + label + ' '
+        text = ' ' + self.label + ' '
         if len(text) <= 5:
             # minimum width is 7
             text = ' ' + text + ' '
             add += 1
 
-        if self.active:
+        if self.has_focus:
             text = '>' + text + '<'
             attr = self.colors.activebutton
         else:
@@ -1233,29 +1260,20 @@ class Button(Widget):
 
         self.parent.wput(xpos, self.y, text, attr)
 
-        if hotkey_pos > -1:
+        if self.hotkey_pos > -1:
             # draw hotkey
-            if self.active:
+            if self.has_focus:
                 attr = self.colors.activebuttonhotkey
             else:
                 attr = self.colors.buttonhotkey
 
-            self.parent.wput(xpos + hotkey_pos + add, self.y, hotkey, attr)
-
-    def select(self):
-        '''select button'''
-
-        self.active = True
-
-    def deselect(self):
-        '''deactivate button'''
-
-        self.active = False
+            self.parent.wput(xpos + self.hotkey_pos + add, self.y,
+                             self.hotkey, attr)
 
     def push(self):
         '''push the button'''
 
-        assert self.active
+        assert self.has_focus
 
         # animate button
         self.pushing = True
@@ -1344,8 +1362,7 @@ class Alert(View):
                 self.hotkeys.append(hotkey)
 
         assert default >= 0 and default < len(self.buttons)
-        self.cursor = default
-        self.buttons[self.cursor].select()
+        self.cursor = self.default = default
 
     def draw(self):
         '''draw the alert box'''
@@ -1374,12 +1391,11 @@ class Alert(View):
         if len(self.buttons) <= 1:
             return
 
-        self.buttons[self.cursor].deselect()
+        self.buttons[self.cursor].lose_focus()
         self.cursor += 1
         if self.cursor >= len(self.buttons):
             self.cursor = 0
-        self.buttons[self.cursor].select()
-        self.draw_buttons()
+        self.buttons[self.cursor].gain_focus()
 
     def move_left(self):
         '''select button to the left'''
@@ -1387,12 +1403,11 @@ class Alert(View):
         if len(self.buttons) <= 1:
             return
 
-        self.buttons[self.cursor].deselect()
+        self.buttons[self.cursor].lose_focus()
         self.cursor -= 1
         if self.cursor < 0:
             self.cursor = len(self.buttons) - 1
-        self.buttons[self.cursor].select()
-        self.draw_buttons()
+        self.buttons[self.cursor].gain_focus()
 
     def push(self):
         '''push selected button'''
@@ -1414,9 +1429,9 @@ class Alert(View):
         for hotkey in self.hotkeys:
             if hotkey == key:
                 if self.cursor != idx:
-                    self.buttons[self.cursor].deselect()
+                    self.buttons[self.cursor].lose_focus()
                     self.cursor = idx
-                    self.buttons[self.cursor].select()
+                    self.buttons[self.cursor].gain_focus()
 
                 self.push()
                 return True
@@ -1427,26 +1442,30 @@ class Alert(View):
 
     def runloop(self):
         '''run the alert dialog
-        Returns button choice or -1 on escape
+        Returns button choice or RETURN_TO_PREVIOUS on escape
         '''
+
+        # always open with the default button active
+        self.cursor = self.default
+        self.buttons[self.cursor].gain_focus()
 
         while True:
             key = getch()
 
             if key == KEY_ESC:
                 self.close()
-                return -1
+                return RETURN_TO_PREVIOUS
 
-            if key == KEY_RETURN or key == ' ':
+            elif key == KEY_LEFT or key == KEY_BTAB:
+                self.move_left()
+
+            elif key == KEY_RIGHT or key == KEY_TAB:
+                self.move_right()
+
+            elif key == KEY_RETURN or key == ' ':
                 self.push()
                 self.close()
                 return self.cursor
-
-            if key == KEY_TAB or key == KEY_RIGHT:
-                self.move_right()
-
-            elif key == KEY_BTAB or key == KEY_LEFT:
-                self.move_left()
 
             elif self.push_hotkey(key):
                 self.close()
