@@ -65,11 +65,12 @@ DEBUG_LOG = []
 
 
 # program states
+# these enums are all negative; cursor choices are positive (inc. 0)
 (RETURN_TO_PREVIOUS,
  GOTO_MENUBAR,
  MOVE_LEFT,
  MOVE_RIGHT,
- ENTER) = range(-1, 4)  # enums start at -1
+ ENTER) = range(-1, -6, -1)
 
 
 
@@ -781,10 +782,7 @@ class MenuItem(object):
     def __init__(self, label):
         '''initialize'''
 
-        hotkey, hotkey_pos, plaintext = label_hotkey(label)
-        self.hotkey = hotkey
-        self.hotkey_pos = hotkey_pos
-        self.text = plaintext
+        self.hotkey, self.hotkey_pos, self.text = label_hotkey(label)
 
 
 
@@ -961,32 +959,32 @@ class Menu(View):
             if (key == KEY_ESC or key == self.closekey or
                 key.upper() == self.closekey):
                 self.close()
-                return -1
-    
+                return RETURN_TO_PREVIOUS
+
             elif key == KEY_LEFT or key == KEY_BTAB:
                 self.close()
-                return -2
-    
+                return MOVE_LEFT
+
             elif key == KEY_RIGHT or key == KEY_TAB:
                 self.close()
-                return -3
-    
+                return MOVE_RIGHT
+
             elif key == KEY_UP:
                 self.move_up()
-    
+
             elif key == KEY_DOWN:
                 self.move_down()
-    
+
             elif key == KEY_PAGEUP or key == KEY_HOME:
                 self.goto_top()
-    
+
             elif key == KEY_PAGEDOWN or key == KEY_END:
                 self.goto_bottom()
-    
+
             elif key == KEY_RETURN or key == ' ':
                 self.close()
                 return self.cursor
-    
+
             elif self.push_hotkey(key):
                 self.close()
                 return self.cursor
@@ -1140,35 +1138,36 @@ class MenuBar(View):
             key = getch()
 
             if key == KEY_ESC:
-                self.choice = -1
+                self.choice = RETURN_TO_PREVIOUS
                 self.back()
                 return RETURN_TO_PREVIOUS
-    
+
             elif key == KEY_LEFT:
                 self.move_left()
-    
+
             elif key == KEY_RIGHT:
                 self.move_right()
-    
+
             elif (key == KEY_RETURN or key == ' ' or key == KEY_DOWN or
                   self.push_hotkey(key)):
                 # activate the menu
                 while True:
                     self.menus[self.cursor].show()
                     choice = self.menus[self.cursor].runloop()
-                    if choice == -1:
+                    if choice == RETURN_TO_PREVIOUS:
                         # escape: closed menu
-                        self.choice = -1
-                        break
-    
-                    elif choice == -2:
+                        self.choice = RETURN_TO_PREVIOUS
+                        self.back()
+                        return RETURN_TO_PREVIOUS
+
+                    elif choice == MOVE_LEFT:
                         # navigate left and open menu
                         self.move_left()
-    
-                    elif choice == -3:
+
+                    elif choice == MOVE_RIGHT:
                         # navigate right and open menu
                         self.move_right()
-    
+
                     else:
                         self.back()
                         self.choice = choice
@@ -1199,7 +1198,7 @@ class Widget(object):
 
         self.has_focus = True
         self.draw_cursor()
-    
+
     def lose_focus(self):
         '''we lose focus'''
 
@@ -1687,18 +1686,31 @@ def _unit_test():
     menu_colors.activemenu = new_color(BLACK, GREEN)
     menu_colors.activemenuhotkey = new_color(RED, GREEN)
 
-    menubar = MenuBar(menu_colors, 
-                      [('<=>', ['<A>bout', '--', '<Q>uit']),
-                       ('<F>ile', ['<N>ew', '<L>oad', '<S>ave', '--',
-                                   '<P>rint']),
-                       ('<E>dit', ['<U>ndo', 'Cut', '<C>opy', '<P>aste',
-                                   '--', '<F>ind', '<R>eplace']),
-                       ('<O>ptions', ['Option <1>', 'Option <2>',
+    menubar = MenuBar(menu_colors,
+                      [('<=>', ['<A>bout',
+                                '--',
+                                '<Q>uit      Ctrl-Q']),
+                       ('<F>ile', ['<N>ew       Ctrl-N',
+                                   '<L>oad      Ctrl-L',
+                                   '<S>ave      Ctrl-S',
+                                   '--',
+                                   '<P>rint     Ctrl-P']),
+                       ('<E>dit', ['<U>ndo      Ctrl-Z',
+                                   'Cut       Ctrl-X',
+                                   '<C>opy      Ctrl-C',
+                                   '<P>aste     Ctrl-V',
+                                   '--',
+                                   '<F>ind      Ctrl-F',
+                                   '<R>eplace   Ctrl-G']),
+                       ('<O>ptions', ['Option <1>',
+                                      'Option <2>',
                                       'Option <3>']),
-                       ('<W>indow', ['<M>inimize', '<Z>oom',
+                       ('<W>indow', ['<M>inimize',
+                                     '<Z>oom',
                                      '<C>ycle through windows',
                                      'Bring to <F>ront']),
-                       ('<H>elp', ['<I>ntroduction', '<S>earch',
+                       ('<H>elp', ['<I>ntroduction',
+                                   '<S>earch',
                                    '<O>nline help'])
                       ])
     menubar.show()
