@@ -1,5 +1,5 @@
 #
-#   views.py     WJ116
+#   views.py    WJ116
 #
 
 '''(n)curses console text mode UI'''
@@ -492,7 +492,7 @@ class TextView(View):
         '''update scrollbar position'''
 
         if (not self.has_border or self.scrollbar_h <= 0 or
-            not self.text):
+                not self.text):
             return
 
         old_y = self.scrollbar_y
@@ -852,11 +852,11 @@ class Menu(View):
             attr_hotkey = self.colors.menuhotkey
 
         item = self.items[self.cursor]
-        self.wprint(0, self.cursor, ' ' + item.text, self.colors.activemenu)
+        self.wprint(0, self.cursor, ' ' + item.text, attr)
         if item.hotkey is not None:
             # draw hotkey
             self.wput(1 + item.hotkey_pos, self.cursor, item.hotkey,
-                      self.colors.activemenuhotkey)
+                      attr_hotkey)
 
     def clear_cursor(self):
         '''erase the cursor'''
@@ -957,7 +957,7 @@ class Menu(View):
             key = getch()
 
             if (key == KEY_ESC or key == self.closekey or
-                key.upper() == self.closekey):
+                    key.upper() == self.closekey):
                 self.close()
                 return RETURN_TO_PREVIOUS
 
