@@ -202,7 +202,7 @@ class View(object):
         self.win = curses.newwin(h, w, y, x)
         self.win.scrollok(False)
         self.win.attrset(self.colors.text)
-        self.win.bkgdset(self.colors.text)
+        self.win.bkgdset(' ', self.colors.text)
         # make curses panel for window
         self.panel = curses.panel.new_panel(self.win)
         # curses panel references this View
@@ -266,7 +266,7 @@ class View(object):
         '''draw the window'''
 
         self.win.attrset(self.colors.text)
-        self.win.bkgdset(self.colors.text)
+        self.win.bkgdset(' ', self.colors.text)
         self.win.clear()
 
         if self.has_border:
