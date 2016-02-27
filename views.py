@@ -832,7 +832,7 @@ class Menu(View):
                 # normal entry
                 if item.text == '--':
                     # separator line
-                    self.hline(0, y, curses.ACS_HLINE, self.bounds.w)
+                    self.hline(1, y, curses.ACS_HLINE, self.bounds.w - 2)
                 else:
                     self.wprint(1, y, item.text, self.colors.menu)
                     if item.hotkey is not None:
