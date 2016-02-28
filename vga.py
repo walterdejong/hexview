@@ -138,9 +138,8 @@ class ScreenBuffer(object):
         for j in xrange(0, h):
             src = (self.y + j) * SCREEN.bufw + self.x
             dst = j * w
-            for i in xrange(0, w):
-                self.origtext[dst + i] = SCREEN.textbuf[src + i]
-                self.origcolor[dst + i] = SCREEN.colorbuf[src + i]
+            memmove(self.origtext, dst, SCREEN.textbuf, src, w)
+            memmove(self.origcolor, dst, SCREEN.colorbuf, src, w)
 
     def restore_background(self):
         '''restore background'''
@@ -148,14 +147,16 @@ class ScreenBuffer(object):
         for j in xrange(0, self.bufh):
             dst = (self.y + j) * SCREEN.bufw + self.x
             src = j * self.bufw
+            memmove(SCREEN.textbuf, dst, self.origtext, src, self.bufw)
+            memmove(SCREEN.colorbuf, dst, self.origcolor, src, self.bufw)
+            # update the curses screen (slower loop)
             for i in xrange(0, self.bufw):
-                ch = SCREEN.textbuf[dst + i] = self.origtext[src + i]
+                ch = SCREEN.textbuf[dst + i]
                 if ch & 0x80:
                     # restore special curses attribute
                     ch &= 0x7f
                     ch |= 0x400000
-
-                color = SCREEN.colorbuf[dst + i] = self.origcolor[src + i]
+                color = SCREEN.colorbuf[dst + i]
                 STDSCR.addch(self.y + j, self.x + i, ch,
                              self.curses_color(color))
 
@@ -621,6 +622,23 @@ def vga_color(fg, bg, bold=True):
         return fg | BOLD | (bg << 4)
     else:
         return fg | (bg << 4)
+
+
+def memmove(dst, dst_idx, src, src_idx, count):
+    '''Copy from src to dst bytearray
+    Note that first argument is destination
+    '''
+
+    assert isinstance(dst, bytearray)
+    assert isinstance(src, bytearray)
+    assert dst_idx >= 0
+    assert src_idx >= 0
+    assert count >= 0
+
+    if count == 0:
+        return
+
+    dst[dst_idx:dst_idx + count] = src[src_idx:src_idx + count]
 
 
 def init():
