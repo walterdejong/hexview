@@ -93,6 +93,11 @@ class ScreenBuffer(object):
     def __init__(self, x, y, w, h):
         '''initialize instance'''
 
+        # TODO add frame rect, bounds rect
+        # TODO if has_border, bounds is decreased version of frame
+        # TODO need to do all clipping vs bounds
+        # TODO or move all that sort of code to class View
+
         assert x >= 0
         assert y >= 0
         assert w > 0
@@ -289,7 +294,7 @@ class ScreenBuffer(object):
         self.textbuf[offset] = ch & 0x7f
         if ch > 0x400000:
             self.textbuf[offset] |= 0x80
-        self.colorbuf[offset] = self.color
+        self.colorbuf[offset] = color
 
         curses_color = self.curses_color(color)
         STDSCR.addch(self.y + y, self.x + x, ch, curses_color)
@@ -301,14 +306,15 @@ class ScreenBuffer(object):
         assert y >= 0
 
         # clip message
-        if x >= self.w:
+        # take border into account
+        if x >= self.w - 1:
             return
 
-        if y >= self.h:
+        if y >= self.h - 1:
             return
 
-        if x + len(msg) > self.w:
-            msg = msg[:self.w - (x + len(msg))]
+        if x + len(msg) > self.w - 1:
+            msg = msg[:self.w - 1 - (x + len(msg))]
             if not msg:
                 return
 
@@ -610,6 +616,42 @@ class ScreenBuffer(object):
         # set the curses color
         STDSCR.attrset(CURSES_COLOR)
 
+    def scrollup(self, nlines=1):
+        '''scroll the screen up by nlines'''
+
+        # take borders into account
+        if nlines >= self.h - 2:
+            self.clear()
+            return
+
+        for j in xrange(nlines + 1, self.h - 1):
+            memmove(self.textbuf, (j - nlines) * self.bufw + 1,
+                    self.textbuf, j * self.bufw + 1, self.w - 2)
+            memmove(self.colorbuf, (j - nlines) * self.bufw + 1,
+                    self.colorbuf, j * self.bufw + 1, self.w - 2)
+            self.curses_redraw_line(1, j - nlines, self.w - 2)
+        # clear lines
+        lineno = self.h - 1 - nlines
+        for j in xrange(1, nlines + 1):
+            self.hline(1, lineno + j, self.w - 2, ' ')
+            self.curses_redraw_line(1, j - nlines, self.w - 2)
+
+    def curses_redraw_line(self, x, y, w):
+        '''redraw entire screenbuffer line'''
+
+        if w <= 0:
+            return
+
+        offset = self.bufw * y + x
+        for i in xrange(0, w):
+            ch = self.textbuf[offset + i]
+            if ch & 0x80:
+                # restore curses special character
+                ch &= 0x7f
+                ch |= 0x400000
+            attr = self.curses_color(self.colorbuf[offset + i])
+            STDSCR.addch(self.y + y, self.x + x + i, ch, attr)
+
 
 
 def vga_color(fg, bg, bold=True):
@@ -745,12 +787,17 @@ def unit_test():
     sb.fillrect()
     sb.border()
     sb.shadow()
-    sb.put(4, 1, 'Hello from screenbuffer')
+    sb.put(4, 2, 'Hello from screenbuffer')
 
     color = vga_color(YELLOW, MAGENTA, bold=True)
     sb[2, 4] = ('W', color)
     sb[3, 4] = ('J', color)
 
+    key = getch()
+
+    sb.scrollup(1)
+    key = getch()
+    sb.scrollup(1)
     key = getch()
 
     sb.close()
