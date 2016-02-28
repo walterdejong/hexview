@@ -1477,6 +1477,8 @@ def init():
 
     global SCREEN, SCREEN_W, SCREEN_H
 
+    os.environ['ESCDELAY'] = '25'
+
     SCREEN = curses.initscr()
     curses.savetty()
     curses.start_color()

@@ -2,9 +2,10 @@
 #   vga.py  WJ116
 #
 
-'''emulate VGA text mode screen in curses'''
+'''emulate VGA text mode screen in curses (well, sort of)'''
 
 import curses
+import os
 import sys
 
 # the 'stdscr' variable
@@ -155,7 +156,8 @@ class ScreenBuffer(object):
                     ch |= 0x400000
 
                 color = SCREEN.colorbuf[dst + i] = self.origcolor[src + i]
-                STDSCR.addch(self.y + j, self.x + i, ch, self.curses_color(color))
+                STDSCR.addch(self.y + j, self.x + i, ch,
+                             self.curses_color(color))
 
     def close(self):
         '''close the window'''
@@ -189,6 +191,8 @@ class ScreenBuffer(object):
 
         pair = '%02x' % ((self.bg << 4) | self.fg)
         if pair not in COLOR_PAIRS:
+            assert COLOR_PAIR_IDX < curses.COLOR_PAIRS
+
             # make new curses color pair
             COLOR_PAIR_IDX += 1
             curses.init_pair(COLOR_PAIR_IDX, CURSES_COLORS[self.fg],
@@ -241,6 +245,53 @@ class ScreenBuffer(object):
         self.colorbuf[offset] = self.color
 
         STDSCR.addch(self.y + y, self.x + x, ch)
+
+    def __getitem__(self, idx):
+        '''Returns tuple: (ch, color) at x, y'''
+
+        x, y = idx
+
+        assert x >= 0
+        assert y >= 0
+
+        assert x < self.w
+        assert y < self.h
+
+        offset = self.bufw * y + x
+        return (self.textbuf[offset], self.colorbuf[offset])
+
+    def __setitem__(self, idx, item):
+        '''put a (ch, color) tuple into the buffer at x, y'''
+
+        x, y = idx
+
+        assert x >= 0
+        assert y >= 0
+
+        # do clipping
+        if x >= self.w:
+            return
+
+        if y >= self.h:
+            return
+
+        if isinstance(item, tuple):
+            ch, color = item
+        else:
+            ch = item
+            color = self.color
+
+        if isinstance(ch, str):
+            ch = ord(ch)
+
+        offset = y * self.bufw + x
+        self.textbuf[offset] = ch & 0x7f
+        if ch > 0x400000:
+            self.textbuf[offset] |= 0x80
+        self.colorbuf[offset] = self.color
+
+        curses_color = self.curses_color(color)
+        STDSCR.addch(self.y + y, self.x + x, ch, curses_color)
 
     def put(self, x, y, msg):
         '''write message at x, y'''
@@ -577,6 +628,8 @@ def init():
 
     global STDSCR, SCREEN, CURSES_COLORS
 
+    os.environ['ESCDELAY'] = '25'
+
     STDSCR = curses.initscr()
     curses.savetty()
     curses.start_color()
@@ -661,6 +714,7 @@ def unit_test():
 
     SCREEN.hline(0, 0, SCREEN.w, ' ')
     SCREEN.hline(0, SCREEN.h - 1, SCREEN.w, ' ')
+    SCREEN.set_color(YELLOW, MAGENTA)
     SCREEN.set_color(YELLOW, RED)
     SCREEN.put(4, 0, ' Hello from vga.py ')
 
@@ -674,6 +728,10 @@ def unit_test():
     sb.border()
     sb.shadow()
     sb.put(4, 1, 'Hello from screenbuffer')
+
+    color = vga_color(YELLOW, MAGENTA, bold=True)
+    sb[2, 4] = ('W', color)
+    sb[3, 4] = ('J', color)
 
     key = getch()
 
