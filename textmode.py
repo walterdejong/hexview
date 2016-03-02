@@ -213,12 +213,15 @@ class Video(object):
         self.color = video_color(WHITE, BLACK, bold=False)
         self.curses_color = curses_color(WHITE, BLACK, bold=False)
 
-    def set_color(self, fg, bg, bold=True):
-        '''set current color'''
+    def set_color(self, fg, bg=None, bold=True):
+        '''set current color
+        Returns the combined color code
+        '''
 
         self.color = video_color(fg, bg, bold)
         self.curses_color = curses_color(fg, bg, bold)
         STDSCR.attrset(self.curses_color)
+        return self.color
 
     def putch(self, x, y, ch, color=-1):
         '''put character at x, y'''
@@ -234,8 +237,12 @@ class Video(object):
 
 
 
-def video_color(fg, bg, bold=True):
-    '''Returns ScreenBuf color code'''
+def video_color(fg, bg=None, bold=True):
+    '''Returns combined (ScreenBuf) color code'''
+
+    if bg is None:
+        # passed in only a combined color code
+        return fg
 
     assert fg >= 0 and fg < BOLD
     assert bg >= 0 and bg < BOLD
@@ -254,7 +261,7 @@ def curses_color(fg, bg=None, bold=True):
     if bg is None:
         # passed in only a combined color code
         color = fg
-        fg = color & 3
+        fg = color & 7
         bg = color >> 4
         bold = (color & BOLD) == BOLD
 
@@ -362,13 +369,15 @@ def unit_test():
     '''test this module'''
 
     video = Video()
-    video.set_color(YELLOW, MAGENTA)
+
+    pinky = video.set_color(YELLOW, MAGENTA)
+    video.set_color(YELLOW, GREEN)
 
     center_x = video.w / 2 - 1
     center_y = video.h / 2
 
     video.putch(center_x, center_y, 'W')
-    video.putch(center_x + 1, center_y, 'J')
+    video.putch(center_x + 1, center_y, 'J', pinky)
 
     getch()
 
