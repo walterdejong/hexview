@@ -6,6 +6,10 @@
 
 import curses
 import os
+import sys
+
+# the main video object
+VIDEO = None
 
 # the curses stdscr
 STDSCR = None
@@ -83,6 +87,10 @@ class ScreenBuf(object):
     encoded as (bg << 4) | bold | fg
     '''
 
+    # There are some asserts, but in general,
+    # ScreenBuf shouldn't care about buffer overruns or clipping
+    # because  a) that's a bug   b) performance   c) handled by class Video
+
     def __init__(self, w, h):
         '''initialize'''
 
@@ -133,13 +141,13 @@ class ScreenBuf(object):
         '''
 
         ch, color = value
+
         if isinstance(ch, str):
             ch = ord(ch)
-        else:
-            if ch > 0x400000:
-                # special curses character
-                ch &= 0x7f
-                ch |= 0x80
+        elif ch > 0x400000:
+            # special curses character
+            ch &= 0x7f
+            ch |= 0x80
 
         if isinstance(idx, int):
             offset = idx
@@ -153,6 +161,46 @@ class ScreenBuf(object):
 
         self.textbuf[offset] = ch
         self.colorbuf[offset] = color
+
+    def puts(self, x, y, msg, color):
+        '''write message into buffer at x, y'''
+
+        offset = self.w * y + x
+        for ch in msg:
+            self.__setitem__(offset, (ch, color))
+            offset += 1
+
+    def hline(self, x, y, w, ch, color):
+        '''repeat character horizontally'''
+
+        if isinstance(ch, str):
+            ch = ord(ch)
+        elif ch > 0x400000:
+            # special curses character
+            ch &= 0x7f
+            ch |= 0x80
+
+        offset = self.w * y + x
+        for _ in xrange(0, w):
+            self.textbuf[offset] = ch
+            self.colorbuf[offset] = color
+            offset += 1
+
+    def vline(self, x, y, h, ch, color):
+        '''repeat character horizontally'''
+
+        if isinstance(ch, str):
+            ch = ord(ch)
+        elif ch > 0x400000:
+            # special curses character
+            ch &= 0x7f
+            ch |= 0x80
+
+        offset = self.w * y + x
+        for _ in xrange(0, h):
+            self.textbuf[offset] = ch
+            self.colorbuf[offset] = color
+            offset += self.w
 
     def memmove(self, dst_idx, src_idx, num):
         '''copy num bytes at src_idx to dst_idx'''
@@ -226,6 +274,10 @@ class Video(object):
     def putch(self, x, y, ch, color=-1):
         '''put character at x, y'''
 
+        # clipping
+        if x < 0 or x >= self.w or y < 0 or y >= self.h:
+            return
+
         if color == -1:
             color = self.color
             attr = self.curses_color
@@ -234,6 +286,223 @@ class Video(object):
 
         self.screenbuf[x, y] = (ch, color)
         STDSCR.addch(y, x, ch, attr)
+
+    def puts(self, x, y, msg, color=-1):
+        '''write message at x, y'''
+
+        # clip y
+        if y < 0 or y >= self.h:
+            return
+
+        # clip x
+        if x < 0:
+            msg = msg[-x:]
+            if not msg:
+                return
+            x = 0
+
+        if x + len(msg) >= self.w:
+            msg = msg[:self.w]
+            if not msg:
+                return
+
+        if color == -1:
+            color = self.color
+            attr = self.curses_color
+        else:
+            attr = curses_color(color)
+
+        self.screenbuf.puts(x, y, msg, color)
+        STDSCR.addstr(y, x, msg, attr)
+
+    def hline(self, x, y, w, ch, color=-1):
+        '''draw horizontal line at x, y'''
+
+        # clip y
+        if y < 0 or y >= self.h:
+            return
+
+        # clip x
+        if x < 0:
+            w += x
+            if w <= 0:
+                return
+            x = 0
+
+        if x + w >= self.w:
+            w = (self.w - x)
+            if w <= 0:
+                return
+
+        if color == -1:
+            color = self.color
+            attr = self.curses_color
+        else:
+            attr = curses_color(color)
+
+        self.screenbuf.hline(x, y, w, ch, color)
+        STDSCR.hline(y, x, w, ch, attr)
+
+    def fillrect(self, x, y, w, h, color=-1):
+        '''draw rectangle at x, y'''
+
+        # clip x
+        if x < 0:
+            w += x
+            if w <= 0:
+                return
+            x = 0
+
+        if x + w >= self.w:
+            w = (self.w - x)
+            if w <= 0:
+                return
+
+        # clip y
+        if y < 0:
+            h += y
+            if h <= 0:
+                return
+            y = 0
+
+        if y + h >= self.h:
+            h = (self.h - y)
+            if h <= 0:
+                return
+
+        if color == -1:
+            color = self.color
+            attr = self.curses_color
+        else:
+            attr = curses_color(color)
+
+        # temporarily change the current curses color
+        STDSCR.attrset(attr)
+
+        for j in xrange(0, h):
+            self.screenbuf.hline(x, y + j, w, ' ', color)
+            STDSCR.hline(y + j, x, ' ', w)
+
+        # restore curses color
+        STDSCR.attrset(self.curses_color)
+
+    def border(self, x, y, w, h, color=-1):
+        '''draw rectangle border'''
+
+        # FIXME implement border()
+        pass
+
+
+
+class Rect(object):
+    '''represents a rectangle'''
+
+    def __init__(self, x, y, w, h):
+        '''initialize'''
+
+        assert w > 0
+        assert h > 0
+
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
+
+
+
+class Window(object):
+    '''represents a window'''
+
+    OPEN = 1
+    SHOWN = 2
+
+    def __init__(self, x, y, w, h, fg=WHITE, bg=BLUE, bold=True, title=None,
+                 border=True):
+        '''initialize'''
+
+        self.frame = Rect(x, y, w, h)
+        self.color = video_color(fg, bg, bold)
+        self.title = title
+        self.has_border = border
+
+        # bounds is the inner area; for view content
+        self.bounds = Rect(x + 1, y + 1, w - 2, h - 2)
+
+        # rect is the outer area; larger because of shadow
+        self.rect = Rect(x, y, w + 2, h + 1)
+        self.back = ScreenBuf(self.rect.w, self.rect.h)
+
+        self.flags = 0
+
+    def set_color(self, fg, bg=None, bold=True):
+        '''set color'''
+
+        self.color = video_color(fg, bg, bold)
+
+    def save_background(self):
+        '''save the background'''
+
+        # FIXME do something with copyrect()
+        pass
+
+    def restore_background(self):
+        '''restore the background'''
+
+        # FIXME do something with VIDEO.copyrect()
+        pass
+
+    def open(self):
+        '''open the window'''
+
+        if self.flags & Window.OPEN:
+            return
+
+        self.flags |= Window.OPEN
+        self.save_background()
+
+    def close(self):
+        '''close the window'''
+
+        if not self.flags & Window.OPEN:
+            return
+
+        self.hide()
+        self.flags &= ~Window.OPEN
+
+    def show(self):
+        '''open the window'''
+
+        self.open()
+
+        if self.flags & Window.SHOWN:
+            return
+
+        self.flags |= Window.SHOWN
+        self.draw()
+
+    def hide(self):
+        '''hide the window'''
+
+        if not self.flags & Window.SHOWN:
+            return
+
+        self.restore_background()
+        self.flags &= ~Window.SHOWN
+
+    def draw(self):
+        '''draw the window'''
+
+        # draw rect
+        VIDEO.fillrect(self.frame.x, self.frame.y, self.frame.w, self.frame.h,
+                       self.color)
+        # draw border
+        VIDEO.border(self.frame.x, self.frame.y, self.frame.w, self.frame.h,
+                     self.color)
+        # draw title
+        if self.title is not None:
+            title = ' ' + self.title + ' '
+            x = (self.frame.w - len(title)) / 2
+            VIDEO.puts(self.frame.x + x, self.frame.y, title, self.color)
 
 
 
@@ -365,19 +634,30 @@ def getch():
     return skey
 
 
+def init():
+    '''initialize module'''
+
+    global VIDEO
+
+    VIDEO = Video()
+
+
 def unit_test():
     '''test this module'''
 
-    video = Video()
+    init()
 
-    pinky = video.set_color(YELLOW, MAGENTA)
-    video.set_color(YELLOW, GREEN)
+    win = Window(10, 10, 50, 20, fg=WHITE, bg=BLUE, bold=True, title='Hello')
+    win.show()
 
-    center_x = video.w / 2 - 1
-    center_y = video.h / 2
+    pinky = VIDEO.set_color(YELLOW, MAGENTA)
+    VIDEO.set_color(YELLOW, GREEN)
 
-    video.putch(center_x, center_y, 'W')
-    video.putch(center_x + 1, center_y, 'J', pinky)
+    center_x = VIDEO.w / 2 - 1
+    center_y = VIDEO.h / 2
+
+    VIDEO.putch(center_x, center_y, 'W')
+    VIDEO.putch(center_x + 1, center_y, 'J', pinky)
 
     getch()
 
