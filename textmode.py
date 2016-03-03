@@ -330,7 +330,7 @@ class Video(object):
             x = 0
 
         if x + w >= self.w:
-            w = (self.w - x)
+            w = self.w - x
             if w <= 0:
                 return
 
@@ -354,7 +354,7 @@ class Video(object):
             x = 0
 
         if x + w >= self.w:
-            w = (self.w - x)
+            w = self.w - x
             if w <= 0:
                 return
 
@@ -366,7 +366,7 @@ class Video(object):
             y = 0
 
         if y + h >= self.h:
-            h = (self.h - y)
+            h = self.h - y
             if h <= 0:
                 return
 
@@ -389,8 +389,91 @@ class Video(object):
     def border(self, x, y, w, h, color=-1):
         '''draw rectangle border'''
 
-        # FIXME implement border()
-        pass
+        # clip x direction
+        clipx = x
+        clipw = w
+        if clipx < 0:
+            clipw += clipx
+            if clipw <= 0:
+                return
+            clipx = 0
+
+        if clipx + clipw >= self.w:
+            clipw = self.w - clipx
+            if clipw <= 0:
+                return
+
+        # clip y direction
+        clipy = y
+        cliph = h
+        if clipy < 0:
+            cliph += clipy
+            if cliph <= 0:
+                return
+            clipy = 0
+
+        if clipy + cliph >= self.h:
+            cliph = self.h - clipy
+            if cliph <= 0:
+                return
+
+        if color == -1:
+            color = self.color
+            attr = self.curses_color
+        else:
+            attr = curses_color(color)
+
+        STDSCR.attrset(attr)
+
+        # top
+        if y >= 0 and y < self.h and clipw > 2:
+            self.screenbuf.hline(clipx + 1, y, clipw - 2, curses.ACS_HLINE,
+                                 color)
+            STDSCR.hline(y, clipx + 1, curses.ACS_HLINE, clipw - 2)
+
+        # left
+        if x >= 0 and x < self.w and cliph > 2:
+            self.screenbuf.vline(x, clipy + 1, cliph - 2, curses.ACS_VLINE,
+                                 color)
+            STDSCR.vline(clipy + 1, x, curses.ACS_VLINE, cliph - 2)
+
+            # top left corner
+            if y >= 0 and y < self.h:
+                self.screenbuf[x, y] = (curses.ACS_ULCORNER, color)
+                STDSCR.addch(y, x, curses.ACS_ULCORNER)
+
+            # bottom left corner
+            by = y + h - 1
+            if by >= 0 and by < self.h:
+                self.screenbuf[x, by] = (curses.ACS_LLCORNER, color)
+                STDSCR.addch(by, x, curses.ACS_LLCORNER)
+
+        # right
+        x += w - 1
+        if x >= 0 and x < self.w and cliph > 2:
+            self.screenbuf.vline(x, clipy + 1, cliph - 2, curses.ACS_VLINE,
+                                 color)
+            STDSCR.vline(clipy + 1, x, curses.ACS_VLINE, cliph - 2)
+
+            # top right corner
+            if y >= 0 and y < self.h:
+                self.screenbuf[x, y] = (curses.ACS_URCORNER, color)
+                STDSCR.addch(y, x, curses.ACS_URCORNER)
+
+            # bottom right corner
+            by = y + h - 1
+            if by >= 0 and by < self.h:
+                self.screenbuf[x, by] = (curses.ACS_LRCORNER, color)
+                STDSCR.addch(by, x, curses.ACS_LRCORNER)
+
+        # bottom
+        y += h - 1
+        if y >= 0 and y < self.h and clipw > 2:
+            self.screenbuf.hline(clipx + 1, y, clipw - 2, curses.ACS_HLINE,
+                                 color)
+            STDSCR.hline(y, clipx + 1, curses.ACS_HLINE, clipw - 2)
+
+        STDSCR.attrset(self.curses_color)
 
 
 
@@ -496,8 +579,9 @@ class Window(object):
         VIDEO.fillrect(self.frame.x, self.frame.y, self.frame.w, self.frame.h,
                        self.color)
         # draw border
-        VIDEO.border(self.frame.x, self.frame.y, self.frame.w, self.frame.h,
-                     self.color)
+        if self.has_border:
+            VIDEO.border(self.frame.x, self.frame.y, self.frame.w,
+                         self.frame.h, self.color)
         # draw title
         if self.title is not None:
             title = ' ' + self.title + ' '
