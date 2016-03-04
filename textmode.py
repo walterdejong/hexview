@@ -121,7 +121,10 @@ class ScreenBuf(object):
             raise ValueError('invalid argument')
 
         ch = self.textbuf[offset]
-        if ch > 0x7f:
+        if ch == 0:
+            # blank
+            ch = ' '
+        elif ch > 0x7f:
             # special curses character
             ch &= 0x7f
             ch |= 0x400000
@@ -343,6 +346,34 @@ class Video(object):
         self.screenbuf.hline(x, y, w, ch, color)
         STDSCR.hline(y, x, w, ch, attr)
 
+    def vline(self, x, y, h, ch, color=-1):
+        '''draw vertical line at x, y'''
+
+        # clip x
+        if x < 0 or x >= self.w:
+            return
+
+        # clip y
+        if y < 0:
+            h += y
+            if h <= 0:
+                return
+            y = 0
+
+        if y + h >= self.h:
+            h = self.h - y
+            if h <= 0:
+                return
+
+        if color == -1:
+            color = self.color
+            attr = self.curses_color
+        else:
+            attr = curses_color(color)
+
+        self.screenbuf.vline(x, y, h, ch, color)
+        STDSCR.vline(y, x, h, ch, attr)
+
     def fillrect(self, x, y, w, h, color=-1):
         '''draw rectangle at x, y'''
 
@@ -388,6 +419,8 @@ class Video(object):
 
     def border(self, x, y, w, h, color=-1):
         '''draw rectangle border'''
+
+        # FIXME "de-optimize" this method; use hline() + vline()
 
         # clip x direction
         clipx = x
@@ -474,6 +507,82 @@ class Video(object):
             STDSCR.hline(y, clipx + 1, curses.ACS_HLINE, clipw - 2)
 
         STDSCR.attrset(self.curses_color)
+
+    def shadow(self, x, y, w, h):
+        '''draw shadow for frame rect'''
+
+        # right side shadow vlines
+        self.shadow_vline(x + w, y + 1, h)
+        self.shadow_vline(x + w + 1, y + 1, h)
+
+        # bottom shadow hline
+        self.shadow_hline(x + 2, y + h, w)
+
+    def shadow_hline(self, x, y, w):
+        '''draw horizontal shadow line'''
+
+        # clip y
+        if y < 0 or y >= self.h:
+            return
+
+        # clip x
+        if x < 0:
+            w += x
+            if w <= 0:
+                return
+            x = 0
+
+        if x + w >= self.w:
+            w = self.w - x
+            if w <= 0:
+                return
+
+        shadow = video_color(BLACK, BLACK, bold=True)
+        attr = curses_color(shadow)
+
+        # get the character and redraw with shadow color
+        offset = self.w * y + x
+        for i in xrange(0, w):
+            ch, color = self.screenbuf[offset]
+            self.screenbuf[offset] = (ch, shadow)
+            offset += 1
+
+            if isinstance(ch, str):
+                ch = ord(ch)
+            STDSCR.addch(y, x + i, ch, attr)
+
+    def shadow_vline(self, x, y, h):
+        '''draw vertical shadow line'''
+
+        # clip x
+        if x < 0 or x >= self.w:
+            return
+
+        # clip y
+        if y < 0:
+            h += y
+            if h <= 0:
+                return
+            y = 0
+
+        if y + h >= self.h:
+            w = self.h - y
+            if y <= 0:
+                return
+
+        shadow = video_color(BLACK, BLACK, bold=True)
+        attr = curses_color(shadow)
+
+        # get the character and redraw with shadow color
+        offset = self.w * y + x
+        for j in xrange(0, h):
+            ch, color = self.screenbuf[offset]
+            self.screenbuf[offset] = (ch, shadow)
+            offset += self.w
+
+            if isinstance(ch, str):
+                ch = ord(ch)
+            STDSCR.addch(y + j, x, ch, attr)
 
 
 
@@ -582,6 +691,10 @@ class Window(object):
         if self.has_border:
             VIDEO.border(self.frame.x, self.frame.y, self.frame.w,
                          self.frame.h, self.color)
+
+        # draw frame shadow
+        VIDEO.shadow(self.frame.x, self.frame.y, self.frame.w, self.frame.h)
+
         # draw title
         if self.title is not None:
             title = ' ' + self.title + ' '
@@ -730,6 +843,9 @@ def unit_test():
     '''test this module'''
 
     init()
+
+    bgwin = Window(15, 20, 50, 16, fg=YELLOW, bg=RED, bold=True, title='Back')
+    bgwin.show()
 
     win = Window(10, 10, 50, 20, fg=WHITE, bg=BLUE, bold=True, title='Hello')
     win.show()
