@@ -625,11 +625,22 @@ class Window(object):
         self.back = ScreenBuf(self.rect.w, self.rect.h)
 
         self.flags = 0
+        self.title_color = self.border_color = self.color
 
     def set_color(self, fg, bg=None, bold=True):
         '''set color'''
 
         self.color = video_color(fg, bg, bold)
+
+    def set_title_color(self, fg, bg=None, bold=True):
+        '''set title color'''
+
+        self.title_color = video_color(fg, bg, bold)
+
+    def set_border_color(self, fg, bg=None, bold=True):
+        '''set border color'''
+
+        self.border_color = video_color(fg, bg, bold)
 
     def save_background(self):
         '''save the background'''
@@ -690,7 +701,7 @@ class Window(object):
         # draw border
         if self.has_border:
             VIDEO.border(self.frame.x, self.frame.y, self.frame.w,
-                         self.frame.h, self.color)
+                         self.frame.h, self.border_color)
 
         # draw frame shadow
         VIDEO.shadow(self.frame.x, self.frame.y, self.frame.w, self.frame.h)
@@ -699,7 +710,8 @@ class Window(object):
         if self.title is not None:
             title = ' ' + self.title + ' '
             x = (self.frame.w - len(title)) / 2
-            VIDEO.puts(self.frame.x + x, self.frame.y, title, self.color)
+            VIDEO.puts(self.frame.x + x, self.frame.y, title,
+                       self.title_color)
 
 
 
@@ -848,6 +860,8 @@ def unit_test():
     bgwin.show()
 
     win = Window(10, 10, 50, 20, fg=WHITE, bg=BLUE, bold=True, title='Hello')
+    win.set_title_color(YELLOW, BLUE, True)
+    win.set_border_color(CYAN, BLUE, True)
     win.show()
 
     pinky = VIDEO.set_color(YELLOW, MAGENTA)
