@@ -950,7 +950,7 @@ class TextWindow(Window):
 
         super(TextWindow, self).draw()
         self.draw_text()
-#        self.draw_scrollbar()
+        self.draw_scrollbar()
 
     def draw_text(self):
         '''draws the text content'''
@@ -990,6 +990,53 @@ class TextWindow(Window):
         # take x-scrolling into account
         line = line[self.xoffset:]
         self.cputs(0, y, line, color)
+
+    def update_scrollbar(self):
+        '''update scrollbar position'''
+
+        if (not self.has_border or self.scrollbar_h <= 0 or
+                not self.text):
+            return
+
+        old_y = self.scrollbar_y
+
+        factor = float(self.bounds.h) / len(self.text)
+        new_y = int((self.top + self.cursor) * factor + 0.5)
+        if old_y != new_y:
+            self.clear_scrollbar()
+            self.scrollbar_y = new_y
+            self.draw_scrollbar()
+
+    def clear_scrollbar(self):
+        '''erase scrollbar'''
+
+        if not self.has_border or self.scrollbar_h <= 0:
+            return
+
+        y = self.scrollbar_y - self.scrollbar_h / 2
+        if y < 0:
+            y = 0
+        if y > self.bounds.h - self.scrollbar_h:
+            y = self.bounds.h - self.scrollbar_h
+
+        VIDEO.vline(self.frame.x + self.frame.w - 1, self.bounds.y + y,
+                    self.scrollbar_h, curses.ACS_VLINE, self.border_color)
+
+    def draw_scrollbar(self):
+        '''draw scrollbar'''
+
+        if not self.has_border or self.scrollbar_h <= 0:
+            return
+
+        y = self.scrollbar_y - self.scrollbar_h / 2
+        if y < 0:
+            y = 0
+        if y > self.bounds.h - self.scrollbar_h:
+            y = self.bounds.h - self.scrollbar_h
+
+        color = video_color(BLACK, WHITE, bold=False)
+        VIDEO.vline(self.frame.x + self.frame.w - 1, self.bounds.y + y,
+                    self.scrollbar_h, curses.ACS_CKBOARD, self.border_color)
 
 
 
@@ -1143,7 +1190,7 @@ def unit_test():
     win = TextWindow(10, 10, 50, 20, fg=WHITE, bg=BLUE, bold=True, title='Hello')
     win.set_title_color(YELLOW, BLUE, True)
     win.set_border_color(CYAN, BLUE, True)
-    win.load('textmode.py')
+    win.load('../../round.c')
     win.show()
 
     pinky = VIDEO.set_color(YELLOW, MAGENTA)
