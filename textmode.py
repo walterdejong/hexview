@@ -6,6 +6,7 @@
 
 import curses
 import os
+import re
 import sys
 import time
 
@@ -57,6 +58,8 @@ KEY_TABLE = {'0x1b': KEY_ESC, '0x0a': KEY_RETURN,
              '0x152': KEY_PAGEDOWN, '0x153': KEY_PAGEUP,
              '0x106': KEY_HOME, '0x168': KEY_END,
              '0x14a': KEY_DEL, '0x107': KEY_BS, '0x7f': KEY_BS}
+
+REGEX_HOTKEY = re.compile(r'.*<((Ctrl-)?[!-~])>.*$')
 
 # debug messages
 DEBUG_LOG = []
@@ -1394,11 +1397,13 @@ class Button(Widget):
         # animate button
         self.pushing = True
         self.parent.draw()
+        STDSCR.refresh()
         curses.doupdate()
         time.sleep(0.1)
 
         self.pushing = False
         self.parent.draw()
+        STDSCR.refresh()
         curses.doupdate()
         time.sleep(0.1)
 
@@ -1451,7 +1456,7 @@ class Alert(Window):
             # one OK button: center it
             label = '<O>K'
             x = center_x(button_width(label), self.bounds.w)
-            self.buttons = [Button(self, x, y, label),]
+            self.buttons = [Button(self, x, y, self.colors, label),]
         else:
             # make and position button widgets
             self.buttons = []
@@ -1469,7 +1474,7 @@ class Alert(Window):
 
             x = spacing
             for label in buttons:
-                button = Button(self, int(x), y, label)
+                button = Button(self, int(x), y, self.colors, label)
                 self.buttons.append(button)
                 x += spacing + button_width(label)
 
@@ -1589,7 +1594,7 @@ class Alert(Window):
 
 
 
-def video_color(fg, bg=None, bold=True):
+def video_color(fg, bg=None, bold=False):
     '''Returns combined (ScreenBuf) color code'''
 
     if bg is None:
@@ -1615,7 +1620,7 @@ def reverse_video(color):
     return (fg << 4) | bg
 
 
-def curses_color(fg, bg=None, bold=True):
+def curses_color(fg, bg=None, bold=False):
     '''Returns curses colorpair index'''
 
     global CURSES_COLORPAIR_IDX
@@ -1703,7 +1708,7 @@ def center_x(width, area=0):
     '''
 
     if area == 0:
-        area = SCREEN_W
+        area = VIDEO.w
 
     x = (area - width) * 0.5
 
@@ -1717,7 +1722,7 @@ def center_y(height, area=0):
     '''
 
     if area == 0:
-        area = SCREEN_H
+        area = VIDEO.h
 
     y = (area - height) * 0.3
     return int(y + 0.5)
@@ -1841,6 +1846,19 @@ def unit_test():
 
     VIDEO.putch(center_x, center_y, 'W')
     VIDEO.putch(center_x + 1, center_y, 'J', pinky)
+
+    alert_colors = ColorSet(BLACK, WHITE)
+    alert_colors.title = video_color(RED, WHITE)
+    alert_colors.button = video_color(WHITE, BLUE, bold=True)
+    alert_colors.buttonhotkey = video_color(YELLOW, BLUE, bold=True)
+    alert_colors.activebutton = video_color(WHITE, GREEN, bold=True)
+    alert_colors.activebuttonhotkey = video_color(YELLOW, GREEN, bold=True)
+
+    alert = Alert(alert_colors, title='Alert', msg='Failed to load file',
+                  buttons=['<C>ancel', '<O>K'], default=1)
+    alert.show()
+    choice = alert.runloop()
+    debug('choice == %d' % choice)
 
     win.runloop()
 
