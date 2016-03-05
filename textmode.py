@@ -690,7 +690,10 @@ class Window(object):
     def set_border_color(self, fg, bg=None, bold=True):
         '''set border color'''
 
-        self.border_color = video_color(fg, bg, bold)
+        if bg is None:
+            self.border_color = fg
+        else:
+            self.border_color = video_color(fg, bg, bold)
 
     def save_background(self):
         '''save the background'''
@@ -909,10 +912,37 @@ class TextWindow(Window):
 
         self.top = 0
         self.cursor = 0
-        self.cursor_color = video_color(WHITE, BLACK, bold=True)
+        self.cursor_color = reverse_video(self.color)
         self.xoffset = 0
         self.scrollbar_y = 0
         self.scrollbar_h = 0
+        self.scrollbar_color = self.border_color
+        self.status = ''
+        self.status_color = self.cursor_color
+
+    def set_cursor_color(self, fg, bg=None, bold=True):
+        '''set cursor color'''
+
+        if bg is None:
+            self.cursor_color = fg
+        else:
+            self.cursor_color = video_color(fg, bg, bold)
+
+    def set_status_color(self, fg, bg=None, bold=True):
+        '''set statusbar color'''
+
+        if bg is None:
+            self.status_color = fg
+        else:
+            self.status_color = video_color(fg, bg, bold)
+
+    def set_scrollbar_color(self, fg, bg=None, bold=True):
+        '''set scrollbar color'''
+
+        if bg is None:
+            self.scrollbar_color = fg
+        else:
+            self.scrollbar_color = video_color(fg, bg, bold)
 
     def load(self, filename):
         '''load text file
@@ -951,6 +981,7 @@ class TextWindow(Window):
         super(TextWindow, self).draw()
         self.draw_text()
         self.draw_scrollbar()
+        self.draw_statusbar()
 
     def draw_text(self):
         '''draws the text content'''
@@ -976,6 +1007,9 @@ class TextWindow(Window):
         else:
             color = -1
         self.printline(self.cursor, color)
+
+        self.update_statusbar(' %d,%d ' % (self.top + self.cursor + 1,
+                                           self.xoffset + 1))
 
     def clear_cursor(self):
         '''erase the cursor'''
@@ -1038,7 +1072,41 @@ class TextWindow(Window):
 
         color = video_color(BLACK, WHITE, bold=False)
         VIDEO.vline(self.frame.x + self.frame.w - 1, self.bounds.y + y,
-                    self.scrollbar_h, curses.ACS_CKBOARD, self.border_color)
+                    self.scrollbar_h, curses.ACS_CKBOARD,
+                    self.scrollbar_color)
+
+    def update_statusbar(self, msg):
+        '''update the statusbar'''
+
+        if msg == self.status:
+            return
+
+        if len(msg) < len(self.status):
+            # clear the statusbar
+            w = len(self.status) - len(msg)
+            x = self.bounds.w - 1 - len(self.status)
+            if x < 0:
+                x = 0
+                w = self.bounds.w
+            VIDEO.hline(self.bounds.x + x, self.frame.y + self.frame.h - 1, w,
+                        curses.ACS_HLINE, self.border_color)
+
+        self.status = msg
+        self.draw_statusbar()
+
+    def draw_statusbar(self):
+        '''draw statusbar'''
+
+        x = self.bounds.w - 1 - len(self.status)
+        if x < 0:
+            x = 0
+
+        msg = self.status
+        if len(msg) > self.bounds.w:
+            msg = msg[self.bounds.w:]
+
+        VIDEO.puts(self.bounds.x + x, self.bounds.y + self.bounds.h, msg,
+                   self.status_color)
 
     def move_up(self):
         '''move up'''
@@ -1265,6 +1333,15 @@ def video_color(fg, bg=None, bold=True):
         return (bg << 4) | fg
 
 
+def reverse_video(color):
+    '''Returns reverse of combined color code'''
+
+    bg = color >> 4
+    fg = color & 7
+    bold = color & BOLD
+    return (fg << 4) | bold | bg
+
+
 def curses_color(fg, bg=None, bold=True):
     '''Returns curses colorpair index'''
 
@@ -1399,7 +1476,10 @@ def unit_test():
     win = TextWindow(10, 10, 50, 20, fg=WHITE, bg=BLUE, bold=True, title='Hello')
     win.set_title_color(YELLOW, BLUE, True)
     win.set_border_color(CYAN, BLUE, True)
-    win.load('../../round.c')
+    win.set_cursor_color(WHITE, BLACK, True)
+    win.set_status_color(BLACK, WHITE, False)
+    win.set_scrollbar_color(win.border_color)
+    win.load('textmode.py')
     win.show()
 
     pinky = VIDEO.set_color(YELLOW, MAGENTA)
