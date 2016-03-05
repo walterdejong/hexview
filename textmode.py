@@ -785,6 +785,66 @@ class Window(object):
             VIDEO.puts(self.frame.x + x, self.frame.y, title,
                        self.title_color)
 
+    def puts(self, x, y, msg, color=-1):
+        '''print message in window
+        Does not clear to end of line
+        '''
+
+        # do window clipping
+        if y < 0 or y >= self.bounds.h:
+            return
+
+        if x < 0:
+            msg = msg[-x:]
+            if not msg:
+                return
+            x = 0
+
+        if x + len(msg) >= self.bounds.w:
+            msg = msg[:self.bounds.w - x]
+            if not msg:
+                return
+
+        if color == -1:
+            color = self.color
+
+        VIDEO.puts(self.bounds.x + x, self.bounds.y + y, msg, color)
+
+    def cputs(self, x, y, msg, color=-1):
+        '''print message in window
+        Clear to end of line
+        '''
+
+        # starts out the same as puts(), but then clears to EOL
+
+        # do window clipping
+        if y < 0 or y >= self.bounds.h:
+            return
+
+        if x < 0:
+            msg = msg[-x:]
+            if not msg:
+                return
+            x = 0
+
+        if x + len(msg) >= self.bounds.w:
+            msg = msg[:self.bounds.w - x]
+            if not msg:
+                return
+
+        if color == -1:
+            color = self.color
+
+        VIDEO.puts(self.bounds.x + x, self.bounds.y + y, msg, color)
+ 
+        # clear to end of line
+        l = len(msg)
+        w_eol = self.bounds.w - l - (self.bounds.x + x)
+        if w_eol > 0:
+            clear_eol = ' ' * w_eol
+            VIDEO.puts(self.bounds.x + x + l, self.bounds.y + y,
+                       clear_eol, color)
+
 
 
 def video_color(fg, bg=None, bold=True):
@@ -930,6 +990,7 @@ def unit_test():
 
     bgwin = Window(15, 20, 50, 16, fg=YELLOW, bg=RED, bold=True, title='Back')
     bgwin.show()
+    bgwin.puts(0, 0, 'This is the back window')
 
     getch()
 
@@ -937,6 +998,7 @@ def unit_test():
     win.set_title_color(YELLOW, BLUE, True)
     win.set_border_color(CYAN, BLUE, True)
     win.show()
+    win.puts(0, 0, 'Hello world!')
 
     pinky = VIDEO.set_color(YELLOW, MAGENTA)
     VIDEO.set_color(YELLOW, GREEN)
@@ -950,6 +1012,7 @@ def unit_test():
     getch()
 
     win.close()
+    bgwin.cputs(0, 0, 'Bye!')
 
     getch()
 
