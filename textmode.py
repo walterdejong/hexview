@@ -1435,8 +1435,6 @@ class Alert(Window):
         if border:
             w += 2
             h += 2
-        elif title is not None:
-            h += 1
 
         # center the box
         x = center_x(w)
@@ -1718,13 +1716,14 @@ def center_x(width, area=0):
 
 def center_y(height, area=0):
     '''Return centered y coordinate
-    If area is not given, put it halfway the top of screen
+    If area is not given, put it in top half of screen
     '''
 
     if area == 0:
-        area = VIDEO.h
+        y = (VIDEO.h - height) * 0.35
+    else:
+        y = (area - height) * 0.5
 
-    y = (area - height) * 0.3
     return int(y + 0.5)
 
 
