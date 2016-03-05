@@ -563,18 +563,8 @@ class Video(object):
 
         STDSCR.attrset(self.curses_color)
 
-    def shadow(self, x, y, w, h):
-        '''draw shadow for frame rect'''
-
-        # right side shadow vlines
-        self.shadow_vline(x + w, y + 1, h)
-        self.shadow_vline(x + w + 1, y + 1, h)
-
-        # bottom shadow hline
-        self.shadow_hline(x + 2, y + h, w)
-
-    def shadow_hline(self, x, y, w):
-        '''draw horizontal shadow line'''
+    def color_hline(self, x, y, w, color=-1):
+        '''draw horizontal color line'''
 
         # clip y
         if y < 0 or y >= self.h:
@@ -592,22 +582,24 @@ class Video(object):
             if w <= 0:
                 return
 
-        shadow = video_color(BLACK, BLACK, bold=True)
-        attr = curses_color(shadow)
+        if color == -1:
+            color = self.color
+            attr = self.curses_color
+        else:
+            attr = curses_color(color)
 
-        # get the character and redraw with shadow color
+        # get the character and redraw with color
         offset = self.w * y + x
         for i in xrange(0, w):
             ch, color = self.screenbuf[offset]
-            self.screenbuf[offset] = (ch, shadow)
+            self.screenbuf[offset] = (ch, color)
             offset += 1
-
             if isinstance(ch, str):
                 ch = ord(ch)
             STDSCR.addch(y, x + i, ch, attr)
 
-    def shadow_vline(self, x, y, h):
-        '''draw vertical shadow line'''
+    def color_vline(self, x, y, h, color=-1):
+        '''draw vertical colored line'''
 
         # clip x
         if x < 0 or x >= self.w:
@@ -625,16 +617,18 @@ class Video(object):
             if y <= 0:
                 return
 
-        shadow = video_color(BLACK, BLACK, bold=True)
-        attr = curses_color(shadow)
+        if color == -1:
+            color = self.color
+            attr = self.curses_color
+        else:
+            attr = curses_color(color)
 
-        # get the character and redraw with shadow color
+        # get the character and redraw with color
         offset = self.w * y + x
         for j in xrange(0, h):
             ch, color = self.screenbuf[offset]
-            self.screenbuf[offset] = (ch, shadow)
+            self.screenbuf[offset] = (ch, color)
             offset += self.w
-
             if isinstance(ch, str):
                 ch = ord(ch)
             STDSCR.addch(y + j, x, ch, attr)
@@ -776,7 +770,7 @@ class Window(object):
                          self.frame.h, self.border_color)
 
         # draw frame shadow
-        VIDEO.shadow(self.frame.x, self.frame.y, self.frame.w, self.frame.h)
+        self.draw_shadow()
 
         # draw title
         if self.title is not None:
@@ -784,6 +778,20 @@ class Window(object):
             x = (self.frame.w - len(title)) / 2
             VIDEO.puts(self.frame.x + x, self.frame.y, title,
                        self.title_color)
+
+    def draw_shadow(self):
+        '''draw shadow for frame rect'''
+
+        color = video_color(BLACK, BLACK, bold=True)
+
+        # right side shadow vlines
+        VIDEO.color_vline(self.frame.x + self.frame.w, self.frame.y + 1,
+                          self.frame.h, color)
+        VIDEO.color_vline(self.frame.x + self.frame.w + 1, self.frame.y + 1,
+                          self.frame.h, color)
+        # bottom shadow hline
+        VIDEO.color_hline(self.frame.x + 2, self.frame.y + self.frame.h,
+                          self.frame.w, color)
 
     def puts(self, x, y, msg, color=-1):
         '''print message in window
