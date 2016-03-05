@@ -766,7 +766,7 @@ class Window(object):
         self.flags |= Window.FOCUS
         self.draw_cursor()
 
-    def loose_focus(self):
+    def lose_focus(self):
         '''event: focus lost'''
 
         self.flags &= ~Window.FOCUS
@@ -971,14 +971,16 @@ class TextWindow(Window):
     def draw_cursor(self):
         '''redraw the cursor line'''
 
-        debug('TextWindow.draw_cursor()')
         if self.flags & Window.FOCUS:
-            debug('focus: using cursor_color')
             color = self.cursor_color
         else:
-            debug('focus: using default color')
             color = -1
         self.printline(self.cursor, color)
+
+    def clear_cursor(self):
+        '''erase the cursor'''
+
+        self.printline(self.cursor)
 
     def printline(self, y, color=-1):
         '''print a single line'''
@@ -1037,6 +1039,213 @@ class TextWindow(Window):
         color = video_color(BLACK, WHITE, bold=False)
         VIDEO.vline(self.frame.x + self.frame.w - 1, self.bounds.y + y,
                     self.scrollbar_h, curses.ACS_CKBOARD, self.border_color)
+
+    def move_up(self):
+        '''move up'''
+
+        if self.cursor > 0:
+            self.clear_cursor()
+            self.cursor -= 1
+        else:
+            self.scroll_up()
+
+        self.update_scrollbar()
+        self.draw_cursor()
+
+    def move_down(self):
+        '''move down'''
+
+        if not self.text or self.cursor >= len(self.text) - 1:
+            return
+
+        if self.cursor < self.bounds.h - 1:
+            self.clear_cursor()
+            self.cursor += 1
+        else:
+            self.scroll_down()
+
+        self.update_scrollbar()
+        self.draw_cursor()
+
+    def move_left(self):
+        '''move left'''
+
+        if self.xoffset > 0:
+            self.xoffset -= 4
+            if self.xoffset < 0:
+                self.xoffset = 0
+            self.draw_text()
+        self.draw_cursor()
+
+    def move_right(self):
+        '''move right'''
+
+        max_xoffset = 500
+        if self.xoffset < max_xoffset:
+            self.xoffset += 4
+            self.draw_text()
+        self.draw_cursor()
+
+    def scroll_up(self):
+        '''scroll up one line'''
+
+        old_top = self.top
+        self.top -= 1
+        if self.top < 0:
+            self.top = 0
+
+        if self.top != old_top:
+            self.draw_text()
+
+    def scroll_down(self):
+        '''scroll down one line'''
+
+        old_top = self.top
+        self.top += 1
+        if self.top > len(self.text) - self.bounds.h:
+            self.top = len(self.text) - self.bounds.h
+            if self.top < 0:
+                self.top = 0
+
+        if self.top != old_top:
+            self.draw_text()
+
+    def pageup(self):
+        '''scroll one page up'''
+
+        old_top = self.top
+        old_cursor = new_cursor = self.cursor
+
+        if old_cursor == self.bounds.h - 1:
+            new_cursor = 0
+        else:
+            self.top -= self.bounds.h - 1
+            if self.top < 0:
+                self.top = 0
+                new_cursor = 0
+
+        if self.top != old_top:
+            self.cursor = new_cursor
+            self.draw_text()
+        elif old_cursor != new_cursor:
+            self.clear_cursor()
+            self.cursor = new_cursor
+
+        self.update_scrollbar()
+        self.draw_cursor()
+
+    def pagedown(self):
+        '''scroll one page down'''
+
+        old_top = self.top
+        old_cursor = new_cursor = self.cursor
+
+        if old_cursor == 0:
+            new_cursor = self.bounds.h - 1
+        else:
+            self.top += self.bounds.h - 1
+            if self.top > len(self.text) - self.bounds.h:
+                self.top = len(self.text) - self.bounds.h
+                if self.top < 0:
+                    self.top = 0
+                new_cursor = self.bounds.h - 1
+                if new_cursor >= len(self.text):
+                    new_cursor = len(self.text) - 1
+                    if new_cursor < 0:
+                        new_cursor = 0
+
+        if self.top != old_top:
+            self.cursor = new_cursor
+            self.draw_text()
+        elif old_cursor != new_cursor:
+            self.clear_cursor()
+            self.cursor = new_cursor
+
+        self.update_scrollbar()
+        self.draw_cursor()
+
+    def goto_top(self):
+        '''go to top of document'''
+
+        old_top = self.top
+        old_cursor = new_cursor = self.cursor
+        old_xoffset = self.xoffset
+
+        self.top = self.xoffset = new_cursor = 0
+        if old_top != self.top or old_xoffset != self.xoffset:
+            self.cursor = new_cursor
+            self.draw_text()
+        elif old_cursor != new_cursor:
+            self.clear_cursor()
+            self.cursor = new_cursor
+
+        self.update_scrollbar()
+        self.draw_cursor()
+
+    def goto_bottom(self):
+        '''go to bottom of document'''
+
+        old_top = self.top
+        old_cursor = new_cursor = self.cursor
+        old_xoffset = self.xoffset
+
+        self.top = len(self.text) - self.bounds.h
+        if self.top < 0:
+            self.top = 0
+
+        new_cursor = self.bounds.h - 1
+        if new_cursor >= len(self.text):
+            new_cursor = len(self.text) - 1
+            if new_cursor < 0:
+                new_cursor = 0
+
+        self.xoffset = 0
+
+        if self.top != old_top or old_xoffset != self.xoffset:
+            self.cursor = new_cursor
+            self.draw_text()
+        elif old_cursor != new_cursor:
+            self.clear_cursor()
+            self.cursor = new_cursor
+
+        self.update_scrollbar()
+        self.draw_cursor()
+
+    def runloop(self):
+        '''run main input loop for this view
+        Returns a new program state code
+        '''
+
+        while True:
+            key = getch()
+
+            if key == KEY_ESC:
+                self.lose_focus()
+                break
+
+            elif key == KEY_UP:
+                self.move_up()
+
+            elif key == KEY_DOWN:
+                self.move_down()
+
+            elif key == KEY_LEFT:
+                self.move_left()
+
+            elif key == KEY_RIGHT:
+                self.move_right()
+
+            elif key == KEY_PAGEUP:
+                self.pageup()
+
+            elif key == KEY_PAGEDOWN:
+                self.pagedown()
+
+            elif key == KEY_HOME:
+                self.goto_top()
+
+            elif key == KEY_END:
+                self.goto_bottom()
 
 
 
@@ -1202,7 +1411,7 @@ def unit_test():
     VIDEO.putch(center_x, center_y, 'W')
     VIDEO.putch(center_x + 1, center_y, 'J', pinky)
 
-    getch()
+    win.runloop()
 
     win.close()
     bgwin.cputs(0, 0, 'Bye!')
