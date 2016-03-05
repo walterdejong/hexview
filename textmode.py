@@ -613,7 +613,7 @@ class Video(object):
             y = 0
 
         if y + h >= self.h:
-            w = self.h - y
+            h = self.h - y
             if y <= 0:
                 return
 
@@ -651,6 +651,33 @@ class Rect(object):
 
 
 
+class ColorSet(object):
+    '''collection of colors'''
+
+    def __init__(self, fg=WHITE, bg=BLACK, bold=False):
+        '''initialize'''
+
+        self.text = video_color(fg, bg, bold)
+        self.border = self.text
+        self.title = self.text
+        self.cursor = reverse_video(self.text)
+        self.status = self.text
+        self.scrollbar = self.text
+        self.shadow = video_color(BLACK, BLACK, True)
+
+        # not all views use these, but set them anyway
+        self.button = self.text
+        self.buttonhotkey = self.text
+        self.activebutton = self.text
+        self.activebuttonhotkey = self.text
+
+        self.menu = self.text
+        self.menuhotkey = self.text
+        self.activemenu = self.text
+        self.activemenuhotkey = self.text
+
+
+
 class Window(object):
     '''represents a window'''
 
@@ -658,12 +685,11 @@ class Window(object):
     SHOWN = 2
     FOCUS = 4
 
-    def __init__(self, x, y, w, h, fg=WHITE, bg=BLUE, bold=True, title=None,
-                 border=True):
+    def __init__(self, x, y, w, h, colors, title=None, border=True):
         '''initialize'''
 
         self.frame = Rect(x, y, w, h)
-        self.color = video_color(fg, bg, bold)
+        self.colors = colors
         self.title = title
         self.has_border = border
 
@@ -673,27 +699,7 @@ class Window(object):
         # rect is the outer area; larger because of shadow
         self.rect = Rect(x, y, w + 2, h + 1)
         self.back = ScreenBuf(self.rect.w, self.rect.h)
-
         self.flags = 0
-        self.title_color = self.border_color = self.color
-
-    def set_color(self, fg, bg=None, bold=True):
-        '''set color'''
-
-        self.color = video_color(fg, bg, bold)
-
-    def set_title_color(self, fg, bg=None, bold=True):
-        '''set title color'''
-
-        self.title_color = video_color(fg, bg, bold)
-
-    def set_border_color(self, fg, bg=None, bold=True):
-        '''set border color'''
-
-        if bg is None:
-            self.border_color = fg
-        else:
-            self.border_color = video_color(fg, bg, bold)
 
     def save_background(self):
         '''save the background'''
@@ -783,11 +789,11 @@ class Window(object):
 
         # draw rect
         VIDEO.fillrect(self.frame.x, self.frame.y, self.frame.w, self.frame.h,
-                       self.color)
+                       self.colors.text)
         # draw border
         if self.has_border:
             VIDEO.border(self.frame.x, self.frame.y, self.frame.w,
-                         self.frame.h, self.border_color)
+                         self.frame.h, self.colors.border)
 
         # draw frame shadow
         self.draw_shadow()
@@ -797,7 +803,7 @@ class Window(object):
             title = ' ' + self.title + ' '
             x = (self.frame.w - len(title)) / 2
             VIDEO.puts(self.frame.x + x, self.frame.y, title,
-                       self.title_color)
+                       self.colors.title)
 
     def draw_shadow(self):
         '''draw shadow for frame rect'''
@@ -805,16 +811,14 @@ class Window(object):
         if not self.flags & Window.SHOWN:
             return
 
-        color = video_color(BLACK, BLACK, bold=True)
-
         # right side shadow vlines
         VIDEO.color_vline(self.frame.x + self.frame.w, self.frame.y + 1,
-                          self.frame.h, color)
+                          self.frame.h, self.colors.shadow)
         VIDEO.color_vline(self.frame.x + self.frame.w + 1, self.frame.y + 1,
-                          self.frame.h, color)
+                          self.frame.h, self.colors.shadow)
         # bottom shadow hline
         VIDEO.color_hline(self.frame.x + 2, self.frame.y + self.frame.h,
-                          self.frame.w, color)
+                          self.frame.w, self.colors.shadow)
 
     def draw_cursor(self):
         '''draw cursor'''
@@ -851,7 +855,7 @@ class Window(object):
                 return
 
         if color == -1:
-            color = self.color
+            color = self.colors.text
 
         VIDEO.puts(self.bounds.x + x, self.bounds.y + y, msg, color)
 
@@ -881,7 +885,7 @@ class Window(object):
                 return
 
         if color == -1:
-            color = self.color
+            color = self.colors.text
 
         VIDEO.puts(self.bounds.x + x, self.bounds.y + y, msg, color)
  
@@ -898,12 +902,11 @@ class Window(object):
 class TextWindow(Window):
     '''a window for displaying text'''
 
-    def __init__(self, x, y, w, h, fg=WHITE, bg=BLUE, bold=True, title=None,
-                 border=True, text=None, tabsize=4):
+    def __init__(self, x, y, w, h, colors, title=None, border=True,
+                 text=None, tabsize=4):
         '''initialize'''
 
-        super(TextWindow, self).__init__(x, y, w, h, fg, bg, bold, title,
-                                         border)
+        super(TextWindow, self).__init__(x, y, w, h, colors, title, border)
         if text is None:
             self.text = []
         else:
@@ -912,37 +915,10 @@ class TextWindow(Window):
 
         self.top = 0
         self.cursor = 0
-        self.cursor_color = reverse_video(self.color)
         self.xoffset = 0
         self.scrollbar_y = 0
         self.scrollbar_h = 0
-        self.scrollbar_color = self.border_color
         self.status = ''
-        self.status_color = self.cursor_color
-
-    def set_cursor_color(self, fg, bg=None, bold=True):
-        '''set cursor color'''
-
-        if bg is None:
-            self.cursor_color = fg
-        else:
-            self.cursor_color = video_color(fg, bg, bold)
-
-    def set_status_color(self, fg, bg=None, bold=True):
-        '''set statusbar color'''
-
-        if bg is None:
-            self.status_color = fg
-        else:
-            self.status_color = video_color(fg, bg, bold)
-
-    def set_scrollbar_color(self, fg, bg=None, bold=True):
-        '''set scrollbar color'''
-
-        if bg is None:
-            self.scrollbar_color = fg
-        else:
-            self.scrollbar_color = video_color(fg, bg, bold)
 
     def load(self, filename):
         '''load text file
@@ -1003,7 +979,7 @@ class TextWindow(Window):
         '''redraw the cursor line'''
 
         if self.flags & Window.FOCUS:
-            color = self.cursor_color
+            color = self.colors.cursor
         else:
             color = -1
         self.printline(self.cursor, color)
@@ -1056,7 +1032,7 @@ class TextWindow(Window):
             y = self.bounds.h - self.scrollbar_h
 
         VIDEO.vline(self.frame.x + self.frame.w - 1, self.bounds.y + y,
-                    self.scrollbar_h, curses.ACS_VLINE, self.border_color)
+                    self.scrollbar_h, curses.ACS_VLINE, self.colors.border)
 
     def draw_scrollbar(self):
         '''draw scrollbar'''
@@ -1070,10 +1046,9 @@ class TextWindow(Window):
         if y > self.bounds.h - self.scrollbar_h:
             y = self.bounds.h - self.scrollbar_h
 
-        color = video_color(BLACK, WHITE, bold=False)
         VIDEO.vline(self.frame.x + self.frame.w - 1, self.bounds.y + y,
                     self.scrollbar_h, curses.ACS_CKBOARD,
-                    self.scrollbar_color)
+                    self.colors.scrollbar)
 
     def update_statusbar(self, msg):
         '''update the statusbar'''
@@ -1089,7 +1064,7 @@ class TextWindow(Window):
                 x = 0
                 w = self.bounds.w
             VIDEO.hline(self.bounds.x + x, self.frame.y + self.frame.h - 1, w,
-                        curses.ACS_HLINE, self.border_color)
+                        curses.ACS_HLINE, self.colors.border)
 
         self.status = msg
         self.draw_statusbar()
@@ -1106,7 +1081,7 @@ class TextWindow(Window):
             msg = msg[self.bounds.w:]
 
         VIDEO.puts(self.bounds.x + x, self.bounds.y + self.bounds.h, msg,
-                   self.status_color)
+                   self.colors.status)
 
     def move_up(self):
         '''move up'''
@@ -1317,6 +1292,303 @@ class TextWindow(Window):
 
 
 
+class Widget(object):
+    '''represents a widget'''
+
+    def __init__(self, parent, x, y, colors):
+        '''initialize'''
+
+        self.parent = parent
+        self.x = x
+        self.y = y
+        self.colors = colors
+        self.has_focus = False
+
+    def draw(self):
+        '''draw widget'''
+
+        # override this method
+        pass
+
+    def gain_focus(self):
+        '''we get focus'''
+
+        self.has_focus = True
+        self.draw_cursor()
+
+    def lose_focus(self):
+        '''we lose focus'''
+
+        self.has_focus = False
+        self.draw_cursor()
+
+    def draw_cursor(self):
+        '''draw cursor'''
+
+        # override this method
+        pass
+
+
+
+class Button(Widget):
+    '''represents a button'''
+
+    def __init__(self, parent, x, y, colors, label):
+        '''initialize'''
+
+        assert label is not None
+
+        super(Button, self).__init__(parent, x, y, colors)
+
+        self.hotkey, self.hotkey_pos, self.label = label_hotkey(label)
+
+        self.pushing = False
+
+    def draw(self):
+        '''draw button'''
+
+        self.draw_cursor()
+
+    def draw_cursor(self):
+        '''draw button'''
+
+        # the cursor _is_ the button
+        # and the button is the cursor
+
+        add = 1
+        text = ' ' + self.label + ' '
+        if len(text) <= 5:
+            # minimum width is 7
+            text = ' ' + text + ' '
+            add += 1
+
+        if self.has_focus:
+            text = '>' + text + '<'
+            color = self.colors.activebutton
+        else:
+            text = ' ' + text + ' '
+            color = self.colors.button
+        add += 1
+
+        xpos = self.x
+        if self.pushing:
+            xpos += 1
+
+        self.parent.puts(xpos, self.y, text, color)
+
+        if self.hotkey_pos > -1:
+            # draw hotkey
+            if self.has_focus:
+                color = self.colors.activebuttonhotkey
+            else:
+                color = self.colors.buttonhotkey
+
+            self.parent.puts(xpos + self.hotkey_pos + add, self.y,
+                             self.hotkey, color)
+
+    def push(self):
+        '''push the button'''
+
+        assert self.has_focus
+
+        # animate button
+        self.pushing = True
+        self.parent.draw()
+        curses.doupdate()
+        time.sleep(0.1)
+
+        self.pushing = False
+        self.parent.draw()
+        curses.doupdate()
+        time.sleep(0.1)
+
+
+
+class Alert(Window):
+    '''an alert box with buttons'''
+
+    def __init__(self, colors, title, msg, buttons=None, default=0,
+                 border=True):
+        '''initialize'''
+
+        # determine width and height
+        w = 0
+        lines = msg.split('\n')
+        for line in lines:
+            if len(line) > w:
+                w = len(line)
+        w += 2
+        if buttons is not None:
+            bw = 0
+            for label in buttons:
+                bw += button_width(label) + 2
+            bw += 2
+            if bw > w:
+                w = bw
+
+        h = len(lines) + 5
+        if border:
+            w += 2
+            h += 2
+        elif title is not None:
+            h += 1
+
+        # center the box
+        x = center_x(w)
+        y = center_y(h)
+
+        super(Alert, self).__init__(x, y, w, h, colors, title, border)
+
+        self.text = lines
+
+        # y position of the button bar
+        y = self.bounds.h - 2
+        assert y > 0
+
+        self.hotkeys = []
+
+        if buttons is None:
+            # one OK button: center it
+            label = '<O>K'
+            x = center_x(button_width(label), self.bounds.w)
+            self.buttons = [Button(self, x, y, label),]
+        else:
+            # make and position button widgets
+            self.buttons = []
+
+            # determine spacing
+            total_len = 0
+            for label in buttons:
+                total_len += button_width(label)
+
+            # spacing is a floating point number
+            # but the button will have an integer position
+            spacing = (self.bounds.w - total_len) / (len(buttons) + 1.0)
+            if spacing < 1.0:
+                spacing = 1.0
+
+            x = spacing
+            for label in buttons:
+                button = Button(self, int(x), y, label)
+                self.buttons.append(button)
+                x += spacing + button_width(label)
+
+                # save hotkey
+                hotkey, _, _ = label_hotkey(label)
+                self.hotkeys.append(hotkey)
+
+        assert default >= 0 and default < len(self.buttons)
+        self.cursor = self.default = default
+
+    def draw(self):
+        '''draw the alert box'''
+
+        super(Alert, self).draw()
+
+        # draw the text
+        y = 1
+        for line in self.text:
+            x = (self.bounds.w - len(line)) / 2
+            self.cputs(x, y, line)
+            y += 1
+
+        # draw buttons
+        self.draw_buttons()
+
+    def draw_buttons(self):
+        '''draw the buttons'''
+
+        for button in self.buttons:
+            button.draw()
+
+    def move_right(self):
+        '''select button to the right'''
+
+        if len(self.buttons) <= 1:
+            return
+
+        self.buttons[self.cursor].lose_focus()
+        self.cursor += 1
+        if self.cursor >= len(self.buttons):
+            self.cursor = 0
+        self.buttons[self.cursor].gain_focus()
+
+    def move_left(self):
+        '''select button to the left'''
+
+        if len(self.buttons) <= 1:
+            return
+
+        self.buttons[self.cursor].lose_focus()
+        self.cursor -= 1
+        if self.cursor < 0:
+            self.cursor = len(self.buttons) - 1
+        self.buttons[self.cursor].gain_focus()
+
+    def push(self):
+        '''push selected button'''
+
+        self.buttons[self.cursor].push()
+
+    def push_hotkey(self, key):
+        '''push hotkey
+        Returns True if key indeed pushed a button
+        '''
+
+        if not self.hotkeys:
+            return
+
+        if len(key) == 1:
+            key = key.upper()
+
+        idx = 0
+        for hotkey in self.hotkeys:
+            if hotkey == key:
+                if self.cursor != idx:
+                    self.buttons[self.cursor].lose_focus()
+                    self.cursor = idx
+                    self.buttons[self.cursor].gain_focus()
+
+                self.push()
+                return True
+
+            idx += 1
+
+        return False
+
+    def runloop(self):
+        '''run the alert dialog
+        Returns button choice or -1 on escape
+        '''
+
+        # always open with the default button active
+        self.cursor = self.default
+        self.buttons[self.cursor].gain_focus()
+
+        while True:
+            key = getch()
+
+            if key == KEY_ESC:
+                self.close()
+                return -1
+
+            elif key == KEY_LEFT or key == KEY_BTAB:
+                self.move_left()
+
+            elif key == KEY_RIGHT or key == KEY_TAB:
+                self.move_right()
+
+            elif key == KEY_RETURN or key == ' ':
+                self.push()
+                self.close()
+                return self.cursor
+
+            elif self.push_hotkey(key):
+                self.close()
+                return self.cursor
+
+
+
 def video_color(fg, bg=None, bold=True):
     '''Returns combined (ScreenBuf) color code'''
 
@@ -1338,8 +1610,9 @@ def reverse_video(color):
 
     bg = color >> 4
     fg = color & 7
-    bold = color & BOLD
-    return (fg << 4) | bold | bg
+    # in general looks nicer without bold
+#    bold = color & BOLD
+    return (fg << 4) | bg
 
 
 def curses_color(fg, bg=None, bold=True):
@@ -1373,6 +1646,81 @@ def curses_color(fg, bg=None, bold=True):
         return color | curses.A_BOLD
     else:
         return color
+
+
+def label_hotkey(label):
+    '''Returns triple: (hotkey, hotkey position, plaintext) of the label
+    or None if there is none
+
+    Mind that hotkeys are uppercase, or may also be "Ctrl-key"
+    '''
+
+    m = REGEX_HOTKEY.match(label)
+    if m is None:
+        return (None, -1, label)
+
+    hotkey = m.groups()[0]
+    if len(hotkey) == 1:
+        hotkey = hotkey.upper()
+
+    hotkey_pos = label.find('<')
+    if hotkey_pos > -1:
+        # strip out hooks
+        plaintext = label.replace('<', '').replace('>', '')
+    else:
+        plaintext = label
+
+    return (hotkey, hotkey_pos, plaintext)
+
+
+def label_length(label):
+    '''Returns visual label length'''
+
+    m = REGEX_HOTKEY.match(label)
+    if m is None:
+        return len(label)
+    else:
+        return len(label) - 2
+
+
+def button_width(label):
+    '''Returns visual size of a button'''
+
+    if isinstance(label, Button):
+        label = label.label
+
+    assert isinstance(label, str)
+
+    w = label_length(label)
+    if w <= 3:
+        w += 2
+    return w + 4
+
+
+def center_x(width, area=0):
+    '''Return centered x coordinate
+    If area is not given, center on screen
+    '''
+
+    if area == 0:
+        area = SCREEN_W
+
+    x = (area - width) * 0.5
+
+    # round up for funny looking non-centered objects
+    return int(x + 0.5)
+
+
+def center_y(height, area=0):
+    '''Return centered y coordinate
+    If area is not given, put it halfway the top of screen
+    '''
+
+    if area == 0:
+        area = SCREEN_H
+
+    y = (area - height) * 0.3
+    return int(y + 0.5)
 
 
 def init_curses():
@@ -1467,18 +1815,21 @@ def unit_test():
 
     init()
 
-    bgwin = Window(15, 20, 50, 16, fg=YELLOW, bg=RED, bold=True, title='Back')
+    bgcolors = ColorSet(YELLOW, RED, True)
+    bgwin = Window(15, 20, 50, 16, bgcolors, title='Back')
     bgwin.show()
     bgwin.puts(0, 0, 'This is the back window')
 
     getch()
 
-    win = TextWindow(10, 10, 50, 20, fg=WHITE, bg=BLUE, bold=True, title='Hello')
-    win.set_title_color(YELLOW, BLUE, True)
-    win.set_border_color(CYAN, BLUE, True)
-    win.set_cursor_color(WHITE, BLACK, True)
-    win.set_status_color(BLACK, WHITE, False)
-    win.set_scrollbar_color(win.border_color)
+    wincolors = ColorSet(WHITE, BLUE, True)
+    wincolors.border = video_color(CYAN, BLUE, True)
+    wincolors.title = video_color(YELLOW, BLUE, True)
+    wincolors.cursor = video_color(WHITE, BLACK, True)
+    wincolors.status = video_color(BLACK, WHITE, False)
+    wincolors.scrollbar = wincolors.border
+
+    win = TextWindow(10, 10, 50, 20, wincolors, title='Hello')
     win.load('textmode.py')
     win.show()
 
