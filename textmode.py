@@ -761,6 +761,9 @@ class Window(object):
     def draw(self):
         '''draw the window'''
 
+        if not self.flags & Window.SHOWN:
+            return
+
         # draw rect
         VIDEO.fillrect(self.frame.x, self.frame.y, self.frame.w, self.frame.h,
                        self.color)
@@ -782,6 +785,9 @@ class Window(object):
     def draw_shadow(self):
         '''draw shadow for frame rect'''
 
+        if not self.flags & Window.SHOWN:
+            return
+
         color = video_color(BLACK, BLACK, bold=True)
 
         # right side shadow vlines
@@ -797,6 +803,9 @@ class Window(object):
         '''print message in window
         Does not clear to end of line
         '''
+
+        if not self.flags & Window.SHOWN:
+            return
 
         # do window clipping
         if y < 0 or y >= self.bounds.h:
@@ -822,6 +831,9 @@ class Window(object):
         '''print message in window
         Clear to end of line
         '''
+
+        if not self.flags & Window.SHOWN:
+            return
 
         # starts out the same as puts(), but then clears to EOL
 
@@ -852,6 +864,106 @@ class Window(object):
             clear_eol = ' ' * w_eol
             VIDEO.puts(self.bounds.x + x + l, self.bounds.y + y,
                        clear_eol, color)
+
+
+
+class TextWindow(Window):
+    ''' '''
+
+    def __init__(self, x, y, w, h, fg=WHITE, bg=BLUE, bold=True, title=None,
+                 border=True, text=None, tabsize=4):
+        '''initialize'''
+
+        super(TextWindow, self).__init__(x, y, w, h, fg, bg, bold, title,
+                                         border)
+        if text is None:
+            self.text = []
+        else:
+            self.text = text
+        self.tabsize = tabsize
+
+        self.top = 0
+        self.cursor = 0
+        self.xoffset = 0
+        self.scrollbar_y = 0
+        self.scrollbar_h = 0
+
+    def load(self, filename):
+        '''load text file
+        Raises IOError on error
+        '''
+
+        f = open(filename)
+        with f:
+            self.text = f.readlines()
+
+        # strip newlines
+        self.text = [x.rstrip() for x in self.text]
+
+        # calc scrollbar
+        if self.has_border and len(self.text) > 0:
+            factor = float(self.bounds.h) / len(self.text)
+            self.scrollbar_h = int(factor * self.bounds.h + 0.5)
+            if self.scrollbar_h < 1:
+                self.scrollbar_h = 1
+            if self.scrollbar_h > self.bounds.h:
+                self.scrollbar_h = self.bounds.h
+#            self.update_scrollbar()
+
+        if self.title is not None:
+            self.title = os.path.basename(filename)
+
+        # do a full draw because we loaded new text
+        self.draw()
+
+    def draw(self):
+        '''draw the window'''
+
+        if not self.flags & Window.SHOWN:
+            return
+
+        super(TextWindow, self).draw()
+        self.draw_text()
+#        self.draw_scrollbar()
+
+    def draw_text(self):
+        '''draws the text content'''
+
+        y = 0
+        while y < self.bounds.h:
+            if y == self.cursor:
+                self.draw_cursor()
+            else:
+                try:
+                    self.printline(y)
+                except IndexError:
+                    break
+
+            y += 1
+
+    def draw_cursor(self):
+        '''redraw the cursor line'''
+
+        self.printline(self.cursor)
+
+#        if self.has_focus:
+#            # print line in cursor color
+#            self.printline(self.cursor, self.colors.cursor)
+#        else:
+#            self.printline(self.cursor)
+#        self.statusbar('%d,%d' % ((self.top + self.cursor + 1),
+#                                  (self.xoffset + 1)))
+
+    def printline(self, y, color=-1):
+        '''print a single line'''
+
+        line = self.text[self.top + y]
+        # replace tabs by spaces
+        # This is because curses will display them too big
+        line = line.replace('\t', ' ' * self.tabsize)
+        # take x-scrolling into account
+        line = line[self.xoffset:]
+        self.puts(0, y, line, color)
 
 
 
@@ -966,7 +1078,7 @@ def getch():
         terminate()
         sys.exit(0)
 
-    # TODO if key == KEY_RESIZE: resize_event() for all panels
+    # TODO if key == KEY_RESIZE: resize_event() for all windows
 
     if key >= ord(' ') and key <= ord('~'):
         # ascii keys are returned as string
@@ -1002,11 +1114,11 @@ def unit_test():
 
     getch()
 
-    win = Window(10, 10, 50, 20, fg=WHITE, bg=BLUE, bold=True, title='Hello')
+    win = TextWindow(10, 10, 50, 20, fg=WHITE, bg=BLUE, bold=True, title='Hello')
     win.set_title_color(YELLOW, BLUE, True)
     win.set_border_color(CYAN, BLUE, True)
+    win.load('textmode.py')
     win.show()
-    win.puts(0, 0, 'Hello world!')
 
     pinky = VIDEO.set_color(YELLOW, MAGENTA)
     VIDEO.set_color(YELLOW, GREEN)
