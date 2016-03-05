@@ -7,6 +7,7 @@
 import curses
 import os
 import sys
+import time
 
 # the main video object
 VIDEO = None
@@ -344,7 +345,9 @@ class Video(object):
             attr = curses_color(color)
 
         self.screenbuf.hline(x, y, w, ch, color)
-        STDSCR.hline(y, x, w, ch, attr)
+        if isinstance(ch, str):
+            ch = ord(ch)
+        STDSCR.hline(y, x, ch, w, attr)
 
     def vline(self, x, y, h, ch, color=-1):
         '''draw vertical line at x, y'''
@@ -372,7 +375,9 @@ class Video(object):
             attr = curses_color(color)
 
         self.screenbuf.vline(x, y, h, ch, color)
-        STDSCR.vline(y, x, h, ch, attr)
+        if isinstance(ch, str):
+            ch = ord(ch)
+        STDSCR.vline(y, x, ch, h, attr)
 
     def fillrect(self, x, y, w, h, color=-1):
         '''draw rectangle at x, y'''
@@ -417,10 +422,60 @@ class Video(object):
         # restore curses color
         STDSCR.attrset(self.curses_color)
 
+    def border_unoptimized(self, x, y, w, h, color=-1):
+        '''draw rectangle border'''
+
+        # unoptimized version
+
+        # top
+        self.hline(x + 1, y, w - 2, curses.ACS_HLINE, color)
+        # left
+        self.vline(x, y + 1, h - 2, curses.ACS_VLINE, color)
+        # right
+        self.vline(x + w - 1, y + 1, h - 2, curses.ACS_VLINE, color)
+        # bottom
+        self.hline(x + 1, y + h - 1, w - 2, curses.ACS_HLINE, color)
+
+        if color == -1:
+            color = self.color
+            attr = self.curses_color
+        else:
+            attr = curses_color(color)
+
+        STDSCR.attrset(attr)
+
+        # corners
+        if x >= 0 and x < self.w:
+            # top left corner
+            if y >= 0 and y < self.h:
+                self.screenbuf[x, y] = (curses.ACS_ULCORNER, color)
+                STDSCR.addch(y, x, curses.ACS_ULCORNER)
+
+            # bottom left corner
+            by = y + h - 1
+            if by >= 0 and by < self.h:
+                self.screenbuf[x, by] = (curses.ACS_LLCORNER, color)
+                STDSCR.addch(by, x, curses.ACS_LLCORNER)
+
+        x += w - 1
+        if x >= 0 and x < self.w:
+            # top right corner
+            if y >= 0 and y < self.h:
+                self.screenbuf[x, y] = (curses.ACS_URCORNER, color)
+                STDSCR.addch(y, x, curses.ACS_URCORNER)
+
+            # bottom right corner
+            by = y + h - 1
+            if by >= 0 and by < self.h:
+                self.screenbuf[x, by] = (curses.ACS_LRCORNER, color)
+                STDSCR.addch(by, x, curses.ACS_LRCORNER)
+
+        STDSCR.attrset(self.curses_color)
+
     def border(self, x, y, w, h, color=-1):
         '''draw rectangle border'''
 
-        # FIXME "de-optimize" this method; use hline() + vline()
+        # unrolled version
 
         # clip x direction
         clipx = x
@@ -645,14 +700,31 @@ class Window(object):
     def save_background(self):
         '''save the background'''
 
-        # FIXME do something with copyrect()
-        pass
+        self.back.copyrect(0, 0, VIDEO.screenbuf, self.rect.x, self.rect.y,
+                           self.rect.w, self.rect.h)
 
     def restore_background(self):
         '''restore the background'''
 
-        # FIXME do something with VIDEO.copyrect()
-        pass
+        VIDEO.screenbuf.copyrect(self.rect.x, self.rect.y, self.back, 0, 0,
+                                 self.rect.w, self.rect.h)
+        # update the curses screen
+        prev_color = None
+        offset = VIDEO.w * self.rect.y + self.rect.x
+        for j in xrange(0, self.rect.h):
+            for i in xrange(0, self.rect.w):
+                ch, color = VIDEO.screenbuf[offset]
+                if isinstance(ch, str):
+                    ch = ord(ch)
+
+                if color != prev_color:
+                    # only reset attr when the color did change
+                    prev_color = color
+                    attr = curses_color(color)
+
+                offset += 1
+                STDSCR.addch(self.rect.y + j, self.rect.x + i, ch, attr)
+            offset += (VIDEO.w - self.rect.w)
 
     def open(self):
         '''open the window'''
@@ -859,6 +931,8 @@ def unit_test():
     bgwin = Window(15, 20, 50, 16, fg=YELLOW, bg=RED, bold=True, title='Back')
     bgwin.show()
 
+    getch()
+
     win = Window(10, 10, 50, 20, fg=WHITE, bg=BLUE, bold=True, title='Hello')
     win.set_title_color(YELLOW, BLUE, True)
     win.set_border_color(CYAN, BLUE, True)
@@ -872,6 +946,10 @@ def unit_test():
 
     VIDEO.putch(center_x, center_y, 'W')
     VIDEO.putch(center_x + 1, center_y, 'J', pinky)
+
+    getch()
+
+    win.close()
 
     getch()
 
