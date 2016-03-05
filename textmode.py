@@ -656,6 +656,7 @@ class Window(object):
 
     OPEN = 1
     SHOWN = 2
+    FOCUS = 4
 
     def __init__(self, x, y, w, h, fg=WHITE, bg=BLUE, bold=True, title=None,
                  border=True):
@@ -746,8 +747,9 @@ class Window(object):
         if self.flags & Window.SHOWN:
             return
 
-        self.flags |= Window.SHOWN
+        self.flags |= (Window.SHOWN | Window.FOCUS)
         self.draw()
+        self.draw_cursor()
 
     def hide(self):
         '''hide the window'''
@@ -756,7 +758,19 @@ class Window(object):
             return
 
         self.restore_background()
-        self.flags &= ~Window.SHOWN
+        self.flags &= ~(Window.SHOWN | Window.FOCUS)
+
+    def gain_focus(self):
+        '''event: we got focus'''
+
+        self.flags |= Window.FOCUS
+        self.draw_cursor()
+
+    def loose_focus(self):
+        '''event: focus lost'''
+
+        self.flags &= ~Window.FOCUS
+        self.draw_cursor()
 
     def draw(self):
         '''draw the window'''
@@ -798,6 +812,17 @@ class Window(object):
         # bottom shadow hline
         VIDEO.color_hline(self.frame.x + 2, self.frame.y + self.frame.h,
                           self.frame.w, color)
+
+    def draw_cursor(self):
+        '''draw cursor'''
+
+        # override this method
+
+#        if self.flags & Window.FOCUS:
+#            ...
+#        else:
+#            ...
+        pass
 
     def puts(self, x, y, msg, color=-1):
         '''print message in window
@@ -859,7 +884,7 @@ class Window(object):
  
         # clear to end of line
         l = len(msg)
-        w_eol = self.bounds.w - l - (self.bounds.x + x)
+        w_eol = self.bounds.w - l - x
         if w_eol > 0:
             clear_eol = ' ' * w_eol
             VIDEO.puts(self.bounds.x + x + l, self.bounds.y + y,
@@ -868,7 +893,7 @@ class Window(object):
 
 
 class TextWindow(Window):
-    ''' '''
+    '''a window for displaying text'''
 
     def __init__(self, x, y, w, h, fg=WHITE, bg=BLUE, bold=True, title=None,
                  border=True, text=None, tabsize=4):
@@ -884,6 +909,7 @@ class TextWindow(Window):
 
         self.top = 0
         self.cursor = 0
+        self.cursor_color = video_color(WHITE, BLACK, bold=True)
         self.xoffset = 0
         self.scrollbar_y = 0
         self.scrollbar_h = 0
@@ -932,7 +958,8 @@ class TextWindow(Window):
         y = 0
         while y < self.bounds.h:
             if y == self.cursor:
-                self.draw_cursor()
+                # draw_cursor() will be called by Window.draw()
+                pass
             else:
                 try:
                     self.printline(y)
@@ -944,15 +971,14 @@ class TextWindow(Window):
     def draw_cursor(self):
         '''redraw the cursor line'''
 
-        self.printline(self.cursor)
-
-#        if self.has_focus:
-#            # print line in cursor color
-#            self.printline(self.cursor, self.colors.cursor)
-#        else:
-#            self.printline(self.cursor)
-#        self.statusbar('%d,%d' % ((self.top + self.cursor + 1),
-#                                  (self.xoffset + 1)))
+        debug('TextWindow.draw_cursor()')
+        if self.flags & Window.FOCUS:
+            debug('focus: using cursor_color')
+            color = self.cursor_color
+        else:
+            debug('focus: using default color')
+            color = -1
+        self.printline(self.cursor, color)
 
     def printline(self, y, color=-1):
         '''print a single line'''
@@ -963,7 +989,7 @@ class TextWindow(Window):
         line = line.replace('\t', ' ' * self.tabsize)
         # take x-scrolling into account
         line = line[self.xoffset:]
-        self.puts(0, y, line, color)
+        self.cputs(0, y, line, color)
 
 
 
