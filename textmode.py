@@ -254,40 +254,36 @@ class ScreenBuf(object):
 
 
 
-class Video(object):
-    '''text mode video'''
+class Rect(object):
+    '''represents a rectangle'''
 
-    def __init__(self):
+    def __init__(self, x, y, w, h):
         '''initialize'''
 
-        if STDSCR is None:
-            init_curses()
+        assert w > 0
+        assert h > 0
 
-        self.h, self.w = STDSCR.getmaxyx()
-        self.screenbuf = ScreenBuf(self.w, self.h)
-        self.color = video_color(WHITE, BLACK, bold=False)
-        self.curses_color = curses_color(WHITE, BLACK, bold=False)
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
 
-    def set_color(self, fg, bg=None, bold=True):
-        '''set current color
-        Returns the combined color code
-        '''
-
-        self.color = video_color(fg, bg, bold)
-        self.curses_color = curses_color(fg, bg, bold)
-        STDSCR.attrset(self.curses_color)
-        return self.color
+    # Note: the clipping methods work with relative coordinates
+    # and don't care about the position of the Rect
+    # ie. they don't use self.x, self.y
+    # To obtain the absolute clipping coordinates, translate
+    # the result by rect.x, rect.y
 
     def clip_point(self, x, y):
-        '''clip point at x, y to Video display rect
-        Returns True if point is in the display rect;
-        if True, the point is visible
+        '''clip point at relative x, y against rect
+        Returns True if point is in the rect;
+        if True then the point is visible
         '''
 
         return x >= 0 and x < self.w and y >= 0 and y < self.h
 
     def clip_hline(self, x, y, w):
-        '''clip horizontal line to Video display rect
+        '''clip horizontal line against rect
         If visible, returns clipped tuple: True, x, y, w
         '''
 
@@ -304,7 +300,7 @@ class Video(object):
         return True, x, y, w
 
     def clip_vline(self, x, y, h):
-        '''clip vertical line to Video display rect
+        '''clip vertical line against rect
         If visible, returns clipped tuple: True, x, y, h
         '''
 
@@ -321,7 +317,7 @@ class Video(object):
         return True, x, y, h
 
     def clip_rect(self, x, y, w, h):
-        '''clip rectangle to Video display rect
+        '''clip rectangle against rect
         If visible, returns clipped tuple: True, x, y, w, h
         '''
 
@@ -344,11 +340,38 @@ class Video(object):
 
         return True, x, y, w, h
 
+
+
+class Video(object):
+    '''text mode video'''
+
+    def __init__(self):
+        '''initialize'''
+
+        if STDSCR is None:
+            init_curses()
+
+        self.h, self.w = STDSCR.getmaxyx()
+        self.screenbuf = ScreenBuf(self.w, self.h)
+        self.rect = Rect(0, 0, self.w, self.h)
+        self.color = video_color(WHITE, BLACK, bold=False)
+        self.curses_color = curses_color(WHITE, BLACK, bold=False)
+
+    def set_color(self, fg, bg=None, bold=True):
+        '''set current color
+        Returns the combined color code
+        '''
+
+        self.color = video_color(fg, bg, bold)
+        self.curses_color = curses_color(fg, bg, bold)
+        STDSCR.attrset(self.curses_color)
+        return self.color
+
     def putch(self, x, y, ch, color=-1):
         '''put character at x, y'''
 
         # clipping
-        if not self.clip_point(x, y):
+        if not self.rect.clip_point(x, y):
             return
 
         if color == -1:
@@ -363,7 +386,7 @@ class Video(object):
     def puts(self, x, y, msg, color=-1):
         '''write message at x, y'''
 
-        visible, cx, cy, cw = self.clip_hline(x, y, len(msg))
+        visible, cx, cy, cw = self.rect.clip_hline(x, y, len(msg))
         if not visible:
             return
 
@@ -390,7 +413,7 @@ class Video(object):
     def hline(self, x, y, w, ch, color=-1):
         '''draw horizontal line at x, y'''
 
-        visible, x, y, w = self.clip_hline(x, y, w)
+        visible, x, y, w = self.rect.clip_hline(x, y, w)
         if not visible:
             return
 
@@ -408,7 +431,7 @@ class Video(object):
     def vline(self, x, y, h, ch, color=-1):
         '''draw vertical line at x, y'''
 
-        visible, x, y, h = self.clip_vline(x, y, h)
+        visible, x, y, h = self.rect.clip_vline(x, y, h)
 
         if color == -1:
             color = self.color
@@ -424,7 +447,7 @@ class Video(object):
     def fillrect(self, x, y, w, h, color=-1):
         '''draw rectangle at x, y'''
 
-        visible, x, y, w, h = self.clip_rect(x, y, w, h)
+        visible, x, y, w, h = self.rect.clip_rect(x, y, w, h)
         if not visible:
             return
 
@@ -447,7 +470,7 @@ class Video(object):
     def border(self, x, y, w, h, color=-1):
         '''draw rectangle border'''
 
-        visible, cx, cy, cw, ch = self.clip_rect(x, y, w, h)
+        visible, cx, cy, cw, ch = self.rect.clip_rect(x, y, w, h)
         if not visible:
             return
 
@@ -482,22 +505,22 @@ class Video(object):
             STDSCR.hline(by, cx, curses.ACS_HLINE, cw)
 
         # top left corner
-        if self.clip_point(x, y):
+        if self.rect.clip_point(x, y):
             self.screenbuf[x, y] = (curses.ACS_ULCORNER, color)
             STDSCR.addch(y, x, curses.ACS_ULCORNER)
 
         # bottom left corner
-        if self.clip_point(x, by):
+        if self.rect.clip_point(x, by):
             self.screenbuf[x, by] = (curses.ACS_LLCORNER, color)
             STDSCR.addch(by, x, curses.ACS_LLCORNER)
 
         # top right corner
-        if self.clip_point(rx, y):
+        if self.rect.clip_point(rx, y):
             self.screenbuf[rx, y] = (curses.ACS_URCORNER, color)
             STDSCR.addch(y, rx, curses.ACS_URCORNER)
 
         # bottom right corner
-        if self.clip_point(rx, by):
+        if self.rect.clip_point(rx, by):
             self.screenbuf[rx, by] = (curses.ACS_LRCORNER, color)
             STDSCR.addch(by, rx, curses.ACS_LRCORNER)
 
@@ -506,7 +529,7 @@ class Video(object):
     def color_hline(self, x, y, w, color=-1):
         '''draw horizontal color line'''
 
-        visible, x, y, w = self.clip_hline(x, y, w)
+        visible, x, y, w = self.rect.clip_hline(x, y, w)
         if not visible:
             return
 
@@ -529,7 +552,7 @@ class Video(object):
     def color_vline(self, x, y, h, color=-1):
         '''draw vertical colored line'''
 
-        visible, x, y, h = self.clip_vline(x, y, h)
+        visible, x, y, h = self.rect.clip_vline(x, y, h)
         if not visible:
             return
 
@@ -548,22 +571,6 @@ class Video(object):
             if isinstance(ch, str):
                 ch = ord(ch)
             STDSCR.addch(y + j, x, ch, attr)
-
-
-
-class Rect(object):
-    '''represents a rectangle'''
-
-    def __init__(self, x, y, w, h):
-        '''initialize'''
-
-        assert w > 0
-        assert h > 0
-
-        self.x = x
-        self.y = y
-        self.w = w
-        self.h = h
 
 
 
