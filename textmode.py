@@ -572,6 +572,48 @@ class Video(object):
                 ch = ord(ch)
             STDSCR.addch(y + j, x, ch, attr)
 
+    def getrect(self, x, y, w, h):
+        '''Returns ScreenBuf object with copy of x,y,w,h
+        or None if outside clip area
+        '''
+
+        visible, x, y, w, h = self.rect.clip_rect(x, y, w, h)
+        if not visible:
+            return None
+
+        copy = ScreenBuf(w, h)
+        copy.copyrect(0, 0, self.screenbuf, x, y, w, h)
+        return copy
+
+    def putrect(self, x, y, buf):
+        '''Put ScreenBuf buf at x, y'''
+
+        if buf is None:
+            return
+
+        visible, x, y, w, h = self.rect.clip_rect(x, y, buf.w, buf.h)
+        if not visible:
+            return
+
+        self.screenbuf.copyrect(x, y, buf, 0, 0, buf.w, buf.h)
+        # update the curses screen
+        prev_color = None
+        offset = self.w * y + x
+        for j in xrange(0, h):
+            for i in xrange(0, w):
+                ch, color = self.screenbuf[offset]
+                if isinstance(ch, str):
+                    ch = ord(ch)
+
+                if color != prev_color:
+                    # only reset attr when the color did change
+                    prev_color = color
+                    attr = curses_color(color)
+
+                offset += 1
+                STDSCR.addch(y + j, x + i, ch, attr)
+            offset += self.w - w
+
 
 
 class ColorSet(object):
@@ -627,42 +669,13 @@ class Window(object):
     def save_background(self):
         '''save the background'''
 
-        visible, x, y, w, h = VIDEO.rect.clip_rect(self.rect.x, self.rect.y,
-                                                   self.rect.w, self.rect.h)
-        if not visible:
-            self.back = None
-            return
-
-        self.back = ScreenBuf(w, h)
-        self.back.copyrect(0, 0, VIDEO.screenbuf, x, y, w, h)
+        self.back = VIDEO.getrect(self.rect.x, self.rect.y,
+                                  self.rect.w, self.rect.h)
 
     def restore_background(self):
         '''restore the background'''
 
-        visible, x, y, w, h = VIDEO.rect.clip_rect(self.rect.x, self.rect.y,
-                                                   self.rect.w, self.rect.h)
-        if not visible:
-            return
-
-        VIDEO.screenbuf.copyrect(x, y, self.back, 0, 0, self.back.w,
-                                 self.back.h)
-        # update the curses screen
-        prev_color = None
-        offset = VIDEO.w * y + x
-        for j in xrange(0, h):
-            for i in xrange(0, w):
-                ch, color = VIDEO.screenbuf[offset]
-                if isinstance(ch, str):
-                    ch = ord(ch)
-
-                if color != prev_color:
-                    # only reset attr when the color did change
-                    prev_color = color
-                    attr = curses_color(color)
-
-                offset += 1
-                STDSCR.addch(y + j, x + i, ch, attr)
-            offset += VIDEO.w - w
+        VIDEO.putrect(self.rect.x, self.rect.y, self.back)
 
     def open(self):
         '''open the window'''
