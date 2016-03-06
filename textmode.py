@@ -1330,7 +1330,7 @@ class TextWindow(Window):
 
             if key == KEY_ESC:
                 self.lose_focus()
-                break
+                return GOTO_MENUBAR
 
             elif key == KEY_UP:
                 self.move_up()
@@ -2412,22 +2412,19 @@ def unit_test():
                   buttons=['<C>ancel', '<O>K'], default=1)
     alert.show()
 
-    choice = alert.runloop()
-    debug('alert choice == %d' % choice)
+    # main loop
+    while True:
+        view = STACK.top()
+        if view is None:
+            break
 
-    res = menubar.runloop()
-    debug('menu res == %d' % res)
-    choice = menubar.position()
-    debug('menu position == %d, %d' % (choice[0], choice[1]))
+        event = view.runloop()
+        if event == RETURN_TO_PREVIOUS:
+            continue
 
-    win.runloop()
-
-    win.close()
-    bgwin.cputs(0, 0, 'Bye!')
-
-    getch()
-    bgwin.close()
-    getch()
+        elif event == GOTO_MENUBAR:
+            # activate menubar by making it front
+            menubar.front()
 
     terminate()
 
