@@ -278,11 +278,77 @@ class Video(object):
         STDSCR.attrset(self.curses_color)
         return self.color
 
+    def clip_point(self, x, y):
+        '''clip point at x, y to Video display rect
+        Returns True if point is in the display rect;
+        if True, the point is visible
+        '''
+
+        return x >= 0 and x < self.w and y >= 0 and y < self.h
+
+    def clip_hline(self, x, y, w):
+        '''clip horizontal line to Video display rect
+        If visible, returns clipped tuple: True, x, y, w
+        '''
+
+        if y < 0 or y >= self.h:
+            return False, -1, -1, -1
+
+        if x < 0:
+            w += x
+            x = 0
+
+        if x + w > self.w:
+            w = self.w - x
+
+        return True, x, y, w
+
+    def clip_vline(self, x, y, h):
+        '''clip vertical line to Video display rect
+        If visible, returns clipped tuple: True, x, y, h
+        '''
+
+        if x < 0 or x >= self.w:
+            return False, -1, -1, -1
+
+        if y < 0:
+            h += y
+            y = 0
+
+        if y + h > self.h:
+            h = self.h - y
+
+        return True, x, y, h
+
+    def clip_rect(self, x, y, w, h):
+        '''clip rectangle to Video display rect
+        If visible, returns clipped tuple: True, x, y, w, h
+        '''
+
+        if x + w < 0 or x >= self.w or y + h < 0 or y >= self.h:
+            return False, -1, -1, -1, -1
+
+        if x < 0:
+            w += x
+            x = 0
+
+        if x + w > self.w:
+            w = self.w - x
+
+        if y < 0:
+            h += y
+            y = 0
+
+        if y + h > self.h:
+            h = self.h - y
+
+        return True, x, y, w, h
+
     def putch(self, x, y, ch, color=-1):
         '''put character at x, y'''
 
         # clipping
-        if x < 0 or x >= self.w or y < 0 or y >= self.h:
+        if not self.clip_point(x, y):
             return
 
         if color == -1:
@@ -297,19 +363,18 @@ class Video(object):
     def puts(self, x, y, msg, color=-1):
         '''write message at x, y'''
 
-        # clip y
-        if y < 0 or y >= self.h:
+        visible, cx, cy, cw = self.clip_hline(x, y, len(msg))
+        if not visible:
             return
 
-        # clip x
+        # clip message
         if x < 0:
             msg = msg[-x:]
             if not msg:
                 return
-            x = 0
 
-        if x + len(msg) >= self.w:
-            msg = msg[:self.w]
+        if cw > len(msg):
+            msg = msg[:cw]
             if not msg:
                 return
 
@@ -319,27 +384,15 @@ class Video(object):
         else:
             attr = curses_color(color)
 
-        self.screenbuf.puts(x, y, msg, color)
-        STDSCR.addstr(y, x, msg, attr)
+        self.screenbuf.puts(cx, cy, msg, color)
+        STDSCR.addstr(cy, cx, msg, attr)
 
     def hline(self, x, y, w, ch, color=-1):
         '''draw horizontal line at x, y'''
 
-        # clip y
-        if y < 0 or y >= self.h:
+        visible, x, y, w = self.clip_hline(x, y, w)
+        if not visible:
             return
-
-        # clip x
-        if x < 0:
-            w += x
-            if w <= 0:
-                return
-            x = 0
-
-        if x + w >= self.w:
-            w = self.w - x
-            if w <= 0:
-                return
 
         if color == -1:
             color = self.color
@@ -355,21 +408,7 @@ class Video(object):
     def vline(self, x, y, h, ch, color=-1):
         '''draw vertical line at x, y'''
 
-        # clip x
-        if x < 0 or x >= self.w:
-            return
-
-        # clip y
-        if y < 0:
-            h += y
-            if h <= 0:
-                return
-            y = 0
-
-        if y + h >= self.h:
-            h = self.h - y
-            if h <= 0:
-                return
+        visible, x, y, h = self.clip_vline(x, y, h)
 
         if color == -1:
             color = self.color
@@ -385,29 +424,9 @@ class Video(object):
     def fillrect(self, x, y, w, h, color=-1):
         '''draw rectangle at x, y'''
 
-        # clip x
-        if x < 0:
-            w += x
-            if w <= 0:
-                return
-            x = 0
-
-        if x + w >= self.w:
-            w = self.w - x
-            if w <= 0:
-                return
-
-        # clip y
-        if y < 0:
-            h += y
-            if h <= 0:
-                return
-            y = 0
-
-        if y + h >= self.h:
-            h = self.h - y
-            if h <= 0:
-                return
+        visible, x, y, w, h = self.clip_rect(x, y, w, h)
+        if not visible:
+            return
 
         if color == -1:
             color = self.color
@@ -425,88 +444,12 @@ class Video(object):
         # restore curses color
         STDSCR.attrset(self.curses_color)
 
-    def border_unoptimized(self, x, y, w, h, color=-1):
-        '''draw rectangle border'''
-
-        # unoptimized version
-
-        # top
-        self.hline(x + 1, y, w - 2, curses.ACS_HLINE, color)
-        # left
-        self.vline(x, y + 1, h - 2, curses.ACS_VLINE, color)
-        # right
-        self.vline(x + w - 1, y + 1, h - 2, curses.ACS_VLINE, color)
-        # bottom
-        self.hline(x + 1, y + h - 1, w - 2, curses.ACS_HLINE, color)
-
-        if color == -1:
-            color = self.color
-            attr = self.curses_color
-        else:
-            attr = curses_color(color)
-
-        STDSCR.attrset(attr)
-
-        # corners
-        if x >= 0 and x < self.w:
-            # top left corner
-            if y >= 0 and y < self.h:
-                self.screenbuf[x, y] = (curses.ACS_ULCORNER, color)
-                STDSCR.addch(y, x, curses.ACS_ULCORNER)
-
-            # bottom left corner
-            by = y + h - 1
-            if by >= 0 and by < self.h:
-                self.screenbuf[x, by] = (curses.ACS_LLCORNER, color)
-                STDSCR.addch(by, x, curses.ACS_LLCORNER)
-
-        x += w - 1
-        if x >= 0 and x < self.w:
-            # top right corner
-            if y >= 0 and y < self.h:
-                self.screenbuf[x, y] = (curses.ACS_URCORNER, color)
-                STDSCR.addch(y, x, curses.ACS_URCORNER)
-
-            # bottom right corner
-            by = y + h - 1
-            if by >= 0 and by < self.h:
-                self.screenbuf[x, by] = (curses.ACS_LRCORNER, color)
-                STDSCR.addch(by, x, curses.ACS_LRCORNER)
-
-        STDSCR.attrset(self.curses_color)
-
     def border(self, x, y, w, h, color=-1):
         '''draw rectangle border'''
 
-        # unrolled version
-
-        # clip x direction
-        clipx = x
-        clipw = w
-        if clipx < 0:
-            clipw += clipx
-            if clipw <= 0:
-                return
-            clipx = 0
-
-        if clipx + clipw >= self.w:
-            clipw = self.w - clipx
-            if clipw <= 0:
-                return
-
-        # clip y direction
-        clipy = y
-        cliph = h
-        if clipy < 0:
-            cliph += clipy
-            if cliph <= 0:
-                return
-            clipy = 0
-
-        if clipy + cliph >= self.h:
-            cliph = self.h - clipy
-            if cliph <= 0:
-                return
+        visible, cx, cy, cw, ch = self.clip_rect(x, y, w, h)
+        if not visible:
+            return
 
         if color == -1:
             color = self.color
@@ -517,73 +460,55 @@ class Video(object):
         STDSCR.attrset(attr)
 
         # top
-        if y >= 0 and y < self.h and clipw > 2:
-            self.screenbuf.hline(clipx + 1, y, clipw - 2, curses.ACS_HLINE,
-                                 color)
-            STDSCR.hline(y, clipx + 1, curses.ACS_HLINE, clipw - 2)
+        if y >= 0 and y < self.h:
+            self.screenbuf.hline(cx, y, cw, curses.ACS_HLINE, color)
+            STDSCR.hline(y, cx, curses.ACS_HLINE, cw)
 
         # left
-        if x >= 0 and x < self.w and cliph > 2:
-            self.screenbuf.vline(x, clipy + 1, cliph - 2, curses.ACS_VLINE,
-                                 color)
-            STDSCR.vline(clipy + 1, x, curses.ACS_VLINE, cliph - 2)
-
-            # top left corner
-            if y >= 0 and y < self.h:
-                self.screenbuf[x, y] = (curses.ACS_ULCORNER, color)
-                STDSCR.addch(y, x, curses.ACS_ULCORNER)
-
-            # bottom left corner
-            by = y + h - 1
-            if by >= 0 and by < self.h:
-                self.screenbuf[x, by] = (curses.ACS_LLCORNER, color)
-                STDSCR.addch(by, x, curses.ACS_LLCORNER)
+        if x >= 0 and x < self.w:
+            self.screenbuf.vline(x, cy, ch, curses.ACS_VLINE, color)
+            STDSCR.vline(cy, x, curses.ACS_VLINE, ch)
 
         # right
-        x += w - 1
-        if x >= 0 and x < self.w and cliph > 2:
-            self.screenbuf.vline(x, clipy + 1, cliph - 2, curses.ACS_VLINE,
-                                 color)
-            STDSCR.vline(clipy + 1, x, curses.ACS_VLINE, cliph - 2)
-
-            # top right corner
-            if y >= 0 and y < self.h:
-                self.screenbuf[x, y] = (curses.ACS_URCORNER, color)
-                STDSCR.addch(y, x, curses.ACS_URCORNER)
-
-            # bottom right corner
-            by = y + h - 1
-            if by >= 0 and by < self.h:
-                self.screenbuf[x, by] = (curses.ACS_LRCORNER, color)
-                STDSCR.addch(by, x, curses.ACS_LRCORNER)
+        rx = x + w - 1
+        if rx >= 0 and rx < self.w:
+            self.screenbuf.vline(rx, cy, ch, curses.ACS_VLINE, color)
+            STDSCR.vline(cy, rx, curses.ACS_VLINE, ch)
 
         # bottom
-        y += h - 1
-        if y >= 0 and y < self.h and clipw > 2:
-            self.screenbuf.hline(clipx + 1, y, clipw - 2, curses.ACS_HLINE,
-                                 color)
-            STDSCR.hline(y, clipx + 1, curses.ACS_HLINE, clipw - 2)
+        by = y + h - 1
+        if by >= 0 and by < self.h:
+            self.screenbuf.hline(cx, by, cw, curses.ACS_HLINE, color)
+            STDSCR.hline(by, cx, curses.ACS_HLINE, cw)
+
+        # top left corner
+        if self.clip_point(x, y):
+            self.screenbuf[x, y] = (curses.ACS_ULCORNER, color)
+            STDSCR.addch(y, x, curses.ACS_ULCORNER)
+
+        # bottom left corner
+        if self.clip_point(x, by):
+            self.screenbuf[x, by] = (curses.ACS_LLCORNER, color)
+            STDSCR.addch(by, x, curses.ACS_LLCORNER)
+
+        # top right corner
+        if self.clip_point(rx, y):
+            self.screenbuf[rx, y] = (curses.ACS_URCORNER, color)
+            STDSCR.addch(y, rx, curses.ACS_URCORNER)
+
+        # bottom right corner
+        if self.clip_point(rx, by):
+            self.screenbuf[rx, by] = (curses.ACS_LRCORNER, color)
+            STDSCR.addch(by, rx, curses.ACS_LRCORNER)
 
         STDSCR.attrset(self.curses_color)
 
     def color_hline(self, x, y, w, color=-1):
         '''draw horizontal color line'''
 
-        # clip y
-        if y < 0 or y >= self.h:
+        visible, x, y, w = self.clip_hline(x, y, w)
+        if not visible:
             return
-
-        # clip x
-        if x < 0:
-            w += x
-            if w <= 0:
-                return
-            x = 0
-
-        if x + w >= self.w:
-            w = self.w - x
-            if w <= 0:
-                return
 
         if color == -1:
             color = self.color
@@ -604,21 +529,9 @@ class Video(object):
     def color_vline(self, x, y, h, color=-1):
         '''draw vertical colored line'''
 
-        # clip x
-        if x < 0 or x >= self.w:
+        visible, x, y, h = self.clip_vline(x, y, h)
+        if not visible:
             return
-
-        # clip y
-        if y < 0:
-            h += y
-            if h <= 0:
-                return
-            y = 0
-
-        if y + h >= self.h:
-            h = self.h - y
-            if y <= 0:
-                return
 
         if color == -1:
             color = self.color
@@ -891,7 +804,7 @@ class Window(object):
             color = self.colors.text
 
         VIDEO.puts(self.bounds.x + x, self.bounds.y + y, msg, color)
- 
+
         # clear to end of line
         l = len(msg)
         w_eol = self.bounds.w - l - x
@@ -1840,11 +1753,11 @@ def unit_test():
     pinky = VIDEO.set_color(YELLOW, MAGENTA)
     VIDEO.set_color(YELLOW, GREEN)
 
-    center_x = VIDEO.w / 2 - 1
-    center_y = VIDEO.h / 2
+    x = VIDEO.w / 2 - 1
+    y = VIDEO.h / 2
 
-    VIDEO.putch(center_x, center_y, 'W')
-    VIDEO.putch(center_x + 1, center_y, 'J', pinky)
+    VIDEO.putch(x, y, 'W')
+    VIDEO.putch(x + 1, y, 'J', pinky)
 
     alert_colors = ColorSet(BLACK, WHITE)
     alert_colors.title = video_color(RED, WHITE)
