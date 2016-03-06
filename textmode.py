@@ -621,25 +621,36 @@ class Window(object):
 
         # rect is the outer area; larger because of shadow
         self.rect = Rect(x, y, w + 2, h + 1)
-        self.back = ScreenBuf(self.rect.w, self.rect.h)
+        self.back = None
         self.flags = 0
 
     def save_background(self):
         '''save the background'''
 
-        self.back.copyrect(0, 0, VIDEO.screenbuf, self.rect.x, self.rect.y,
-                           self.rect.w, self.rect.h)
+        visible, x, y, w, h = VIDEO.rect.clip_rect(self.rect.x, self.rect.y,
+                                                   self.rect.w, self.rect.h)
+        if not visible:
+            self.back = None
+            return
+
+        self.back = ScreenBuf(w, h)
+        self.back.copyrect(0, 0, VIDEO.screenbuf, x, y, w, h)
 
     def restore_background(self):
         '''restore the background'''
 
-        VIDEO.screenbuf.copyrect(self.rect.x, self.rect.y, self.back, 0, 0,
-                                 self.rect.w, self.rect.h)
+        visible, x, y, w, h = VIDEO.rect.clip_rect(self.rect.x, self.rect.y,
+                                                   self.rect.w, self.rect.h)
+        if not visible:
+            return
+
+        VIDEO.screenbuf.copyrect(x, y, self.back, 0, 0, self.back.w,
+                                 self.back.h)
         # update the curses screen
         prev_color = None
-        offset = VIDEO.w * self.rect.y + self.rect.x
-        for j in xrange(0, self.rect.h):
-            for i in xrange(0, self.rect.w):
+        offset = VIDEO.w * y + x
+        for j in xrange(0, h):
+            for i in xrange(0, w):
                 ch, color = VIDEO.screenbuf[offset]
                 if isinstance(ch, str):
                     ch = ord(ch)
@@ -650,8 +661,8 @@ class Window(object):
                     attr = curses_color(color)
 
                 offset += 1
-                STDSCR.addch(self.rect.y + j, self.rect.x + i, ch, attr)
-            offset += (VIDEO.w - self.rect.w)
+                STDSCR.addch(y + j, x + i, ch, attr)
+            offset += VIDEO.w - w
 
     def open(self):
         '''open the window'''
