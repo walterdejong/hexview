@@ -72,9 +72,9 @@ DEBUG_LOG = []
 # these enums are all negative; cursor choices are positive (inc. 0)
 (RETURN_TO_PREVIOUS,
  GOTO_MENUBAR,
- MOVE_LEFT,
- MOVE_RIGHT,
- ENTER) = range(-1, -6, -1)
+ MENU_LEFT,
+ MENU_RIGHT,
+ MENU_CLOSE) = range(-1, -6, -1)
 
 
 def debug(msg):
@@ -1842,18 +1842,21 @@ class Menu(Window):
         while True:
             key = getch()
 
-            if (key == KEY_ESC or key == self.closekey or
-                    key.upper() == self.closekey):
+            if key == KEY_ESC:
                 self.close()
                 return RETURN_TO_PREVIOUS
 
+            elif key == self.closekey or key.upper() == self.closekey:
+                self.close()
+                return MENU_CLOSE
+
             elif key == KEY_LEFT or key == KEY_BTAB:
                 self.close()
-                return MOVE_LEFT
+                return MENU_LEFT
 
             elif key == KEY_RIGHT or key == KEY_TAB:
                 self.close()
-                return MOVE_RIGHT
+                return MENU_RIGHT
 
             elif key == KEY_UP:
                 self.move_up()
@@ -2020,8 +2023,6 @@ class MenuBar(Window):
     def runloop(self):
         '''run the menu bar'''
 
-        self.gain_focus()
-
         while True:
             key = getch()
 
@@ -2041,6 +2042,14 @@ class MenuBar(Window):
                 # activate the menu
                 while True:
                     self.menus[self.cursor].show()
+
+                    # showing the menu makes the menubar lose focus
+                    # redraw the menubar cursor however
+                    # so the menubar cursor stays active
+                    # while the menu is open
+                    self.flags |= Window.FOCUS
+                    self.draw_cursor()
+
                     choice = self.menus[self.cursor].runloop()
                     if choice == RETURN_TO_PREVIOUS:
                         # escape: closed menu
@@ -2048,11 +2057,15 @@ class MenuBar(Window):
                         self.back()
                         return RETURN_TO_PREVIOUS
 
-                    elif choice == MOVE_LEFT:
+                    elif choice == MENU_CLOSE:
+                        # close menu; return to menubar
+                        break
+
+                    elif choice == MENU_LEFT:
                         # navigate left and open menu
                         self.move_left()
 
-                    elif choice == MOVE_RIGHT:
+                    elif choice == MENU_RIGHT:
                         # navigate right and open menu
                         self.move_right()
 
