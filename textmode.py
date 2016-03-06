@@ -713,7 +713,10 @@ class Window(object):
         self.has_border = border
 
         # bounds is the inner area; for view content
-        self.bounds = Rect(x + 1, y + 1, w - 2, h - 2)
+        if border:
+            self.bounds = Rect(x + 1, y + 1, w - 2, h - 2)
+        else:
+            self.bounds = self.frame
 
         # rect is the outer area; larger because of shadow
         self.rect = Rect(x, y, w + 2, h + 1)
@@ -1586,7 +1589,7 @@ class Alert(Window):
 
             if key == KEY_ESC:
                 self.close()
-                return -1
+                return RETURN_TO_PREVIOUS
 
             elif key == KEY_LEFT or key == KEY_BTAB:
                 self.move_left()
@@ -1791,7 +1794,7 @@ class Menu(Window):
             if (key == KEY_ESC or key == self.closekey or
                     key.upper() == self.closekey):
                 self.close()
-                return -1
+                return RETURN_TO_PREVIOUS
 
             elif key == KEY_LEFT or key == KEY_BTAB:
                 self.close()
@@ -1820,6 +1823,196 @@ class Menu(Window):
             elif self.push_hotkey(key):
                 self.close()
                 return self.cursor
+
+
+
+class MenuBar(Window):
+    '''represents a menu bar'''
+
+    def __init__(self, colors, menus, border=True):
+        '''initialize
+        menus is a list of tuples: ('header', ['item #1', 'item #2', 'etc.'])
+        '''
+
+        super(MenuBar, self).__init__(0, 0, VIDEO.w, 1, colors, border=False)
+
+        # make list of headers and menus
+        self.headers = [MenuItem(m[0]) for m in menus]
+
+        # make list of x positions for each header
+        self.pos = []
+        x = 2
+        for header in self.headers:
+            self.pos.append(x)
+            x += len(header.text) + 2
+
+        self.cursor = 0
+
+        # make list of menus
+        self.menus = []
+        x = 0
+        for m in menus:
+            items = m[1]
+            menu = Menu(self.pos[x] - 1, self.frame.y + 1, colors, border,
+                        items, self.headers[x].hotkey)
+            self.menus.append(menu)
+            x += 1
+
+        # last chosen menu entry
+        self.choice = -1
+
+    def draw(self):
+        '''draw menu bar'''
+
+        VIDEO.hline(0, 0, VIDEO.w, ' ', self.colors.menu)
+        x = 0
+        for header in self.headers:
+            if x == self.cursor:
+                # cursor will be drawn via Window.show()
+                pass
+            else:
+                self.puts(self.pos[x], 0, header.text, self.colors.menu)
+                if header.hotkey is not None:
+                    # draw hotkey
+                    self.putch(self.pos[x] + header.hotkey_pos, 0,
+                               header.hotkey, self.colors.menuhotkey)
+            x += 1
+
+    def draw_cursor(self):
+        '''draw the cursor (highlighted when in focus)'''
+
+        if self.flags & Window.FOCUS:
+            color = self.colors.activemenu
+            color_hotkey = self.colors.activemenuhotkey
+        else:
+            color = self.colors.menu
+            color_hotkey = self.colors.menuhotkey
+
+        header = self.headers[self.cursor]
+        debug('MenuBar.puts(%d, 0, "%s")' % (self.pos[self.cursor] - 1, ' ' + header.text + ' '))
+        self.puts(self.pos[self.cursor] - 1, 0, ' ' + header.text + ' ',
+                  color)
+        if header.hotkey is not None:
+            # draw hotkey
+            self.putch(self.pos[self.cursor] + header.hotkey_pos, 0,
+                       header.hotkey, color_hotkey)
+
+    def clear_cursor(self):
+        '''erase cursor'''
+
+        color = self.colors.menu
+        color_hotkey = self.colors.menuhotkey
+
+        header = self.headers[self.cursor]
+        self.puts(self.pos[self.cursor] - 1, 0, ' ' + header.text + ' ',
+                  color)
+        if header.hotkey is not None:
+            # draw hotkey
+            self.putch(self.pos[self.cursor] + header.hotkey_pos, 0,
+                       header.hotkey, color_hotkey)
+
+    def selection(self):
+        '''Returns plaintext of selected item, or None if none'''
+
+        if self.choice == -1:
+            return None
+
+        menu = self.menus[self.cursor]
+        return menu.items[self.choice].text
+
+    def position(self):
+        '''Returns tuple: (header index, item index)
+        If item index == -1, no choice was made
+        '''
+
+        return self.cursor, self.choice
+
+    def move_left(self):
+        '''move left'''
+
+        self.clear_cursor()
+        self.cursor -= 1
+        if self.cursor < 0:
+            self.cursor += len(self.headers)
+        self.draw_cursor()
+
+    def move_right(self):
+        '''move right'''
+
+        self.clear_cursor()
+        self.cursor += 1
+        if self.cursor >= len(self.headers):
+            self.cursor = 0
+        self.draw_cursor()
+
+    def push_hotkey(self, key):
+        '''Returns True if the hotkey was pressed'''
+
+        key = key.upper()
+        x = 0
+        for header in self.headers:
+            if header.hotkey == key:
+                if self.cursor != x:
+                    self.clear_cursor()
+                    self.cursor = x
+                    self.draw_cursor()
+                    # give visual feedback
+                    STDSCR.refresh()
+                    curses.doupdate()
+                    time.sleep(0.1)
+
+                return True
+
+            x += 1
+
+        return False
+
+    def runloop(self):
+        '''run the menu bar'''
+
+        self.gain_focus()
+
+        while True:
+            key = getch()
+
+            if key == KEY_ESC:
+                self.choice = RETURN_TO_PREVIOUS
+#                self.back()
+                self.lose_focus()
+                return RETURN_TO_PREVIOUS
+
+            elif key == KEY_LEFT:
+                self.move_left()
+
+            elif key == KEY_RIGHT:
+                self.move_right()
+
+            elif (key == KEY_RETURN or key == ' ' or key == KEY_DOWN or
+                  self.push_hotkey(key)):
+                # activate the menu
+                while True:
+                    self.menus[self.cursor].show()
+                    choice = self.menus[self.cursor].runloop()
+                    if choice == RETURN_TO_PREVIOUS:
+                        # escape: closed menu
+                        self.choice = RETURN_TO_PREVIOUS
+#                        self.back()
+                        self.lose_focus()
+                        return RETURN_TO_PREVIOUS
+
+                    elif choice == MOVE_LEFT:
+                        # navigate left and open menu
+                        self.move_left()
+
+                    elif choice == MOVE_RIGHT:
+                        # navigate right and open menu
+                        self.move_right()
+
+                    else:
+#                        self.back()
+                        self.lose_focus()
+                        self.choice = choice
+                        return choice
 
 
 
@@ -2062,11 +2255,9 @@ def unit_test():
     init()
 
     bgcolors = ColorSet(YELLOW, RED, True)
-    bgwin = Window(15, 20, 50, 16, bgcolors, title='Back')
+    bgwin = Window(15, 6, 50, 16, bgcolors, title='Back')
     bgwin.show()
     bgwin.puts(0, 0, 'This is the back window')
-
-    getch()
 
     wincolors = ColorSet(WHITE, BLUE, True)
     wincolors.border = video_color(CYAN, BLUE, True)
@@ -2075,7 +2266,7 @@ def unit_test():
     wincolors.status = video_color(BLACK, WHITE, False)
     wincolors.scrollbar = wincolors.border
 
-    win = TextWindow(10, 10, 50, 20, wincolors, title='Hello')
+    win = TextWindow(0, 1, 50, 20, wincolors, title='Hello')
     win.load('textmode.py')
     win.show()
 
@@ -2098,8 +2289,6 @@ def unit_test():
     alert = Alert(alert_colors, title='Alert', msg='Failed to load file',
                   buttons=['<C>ancel', '<O>K'], default=1)
     alert.show()
-    choice = alert.runloop()
-    debug('alert choice == %d' % choice)
 
     # warning: this is a reference, not a copy ..!
     menu_colors = alert_colors
@@ -2107,15 +2296,42 @@ def unit_test():
     menu_colors.activemenu = video_color(BLACK, GREEN)
     menu_colors.activemenuhotkey = video_color(RED, GREEN)
 
-    menu = Menu(20, 8, menu_colors, border=True,
-                items=['<N>ew       Ctrl-N',
-                       '<L>oad      Ctrl-L',
-                       '<S>ave      Ctrl-S',
-                       '--',
-                       '<P>rint     Ctrl-P'])
-    menu.show()
-    choice = menu.runloop()
-    debug('menu choice == %d' % choice)
+    menubar = MenuBar(menu_colors,
+                      [('<=>', ['<A>bout',
+                                '--',
+                                '<Q>uit      Ctrl-Q']),
+                       ('<F>ile', ['<N>ew       Ctrl-N',
+                                   '<L>oad      Ctrl-L',
+                                   '<S>ave      Ctrl-S',
+                                   '--',
+                                   '<P>rint     Ctrl-P']),
+                       ('<E>dit', ['<U>ndo      Ctrl-Z',
+                                   'Cut       Ctrl-X',
+                                   '<C>opy      Ctrl-C',
+                                   '<P>aste     Ctrl-V',
+                                   '--',
+                                   '<F>ind      Ctrl-F',
+                                   '<R>eplace   Ctrl-G']),
+                       ('<O>ptions', ['Option <1>',
+                                      'Option <2>',
+                                      'Option <3>']),
+                       ('<W>indow', ['<M>inimize',
+                                     '<Z>oom',
+                                     '<C>ycle through windows',
+                                     'Bring to <F>ront']),
+                       ('<H>elp', ['<I>ntroduction',
+                                   '<S>earch',
+                                   '<O>nline help'])
+                      ])
+    menubar.show()
+
+    choice = alert.runloop()
+    debug('alert choice == %d' % choice)
+
+    res = menubar.runloop()
+    debug('menu res == %d' % res)
+    choice = menubar.position()
+    debug('menu position == %d, %d' % (choice[0], choice[1]))
 
     win.runloop()
 
