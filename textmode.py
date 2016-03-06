@@ -277,6 +277,20 @@ class Rect(object):
         self.w = w
         self.h = h
 
+    def clamp(self, x, y):
+        '''Returns clamped tuple: x, y'''
+
+        if x < self.x:
+            x = self.x
+        if x > self.x + self.w:
+            x = self.x + self.w
+        if y < self.y:
+            y = self.y
+        if y > self.y + self.h:
+            y = self.y + self.h
+
+        return x, y
+
     # Note: the clipping methods work with relative coordinates
     # and don't care about the position of the Rect
     # ie. they don't use self.x, self.y
@@ -647,16 +661,19 @@ class Video(object):
 
         assert isinstance(buf, ScreenBuf)
 
-        visible, x, y, w, h = self.rect.clip_rect(x, y, buf.w, buf.h)
-        if not visible:
+        # we assume buf was created by getrect()
+        # therefore we can safely assume it is already clipped right
+        # but do clamp to (0,0) to get rid of negative coordinates
+        x, y = self.rect.clamp(x, y)
+        if not self.rect.clip_point(x, y):
             return
 
         self.screenbuf.copyrect(x, y, buf, 0, 0, buf.w, buf.h)
         # update the curses screen
         prev_color = None
         offset = self.w * y + x
-        for j in xrange(0, h):
-            for i in xrange(0, w):
+        for j in xrange(0, buf.h):
+            for i in xrange(0, buf.w):
                 ch, color = self.screenbuf[offset]
                 if isinstance(ch, str):
                     ch = ord(ch)
@@ -668,7 +685,7 @@ class Video(object):
 
                 offset += 1
                 self.curses_putch(x + i, y + j, ch, attr)
-            offset += self.w - w
+            offset += self.w - buf.w
 
 
 
@@ -793,13 +810,15 @@ class Window(object):
         if not self.flags & Window.SHOWN:
             return
 
-        # draw rect
-        VIDEO.fillrect(self.frame.x, self.frame.y, self.frame.w, self.frame.h,
-                       self.colors.text)
-        # draw border
         if self.has_border:
+            VIDEO.fillrect(self.frame.x + 1, self.frame.y + 1,
+                           self.frame.w - 2, self.frame.h - 2,
+                           self.colors.text)
             VIDEO.border(self.frame.x, self.frame.y, self.frame.w,
                          self.frame.h, self.colors.border)
+        else:
+            VIDEO.fillrect(self.frame.x, self.frame.y, self.frame.w,
+                           self.frame.h, self.colors.text)
 
         # draw frame shadow
         self.draw_shadow()
@@ -1891,7 +1910,6 @@ class MenuBar(Window):
             color_hotkey = self.colors.menuhotkey
 
         header = self.headers[self.cursor]
-        debug('MenuBar.puts(%d, 0, "%s")' % (self.pos[self.cursor] - 1, ' ' + header.text + ' '))
         self.puts(self.pos[self.cursor] - 1, 0, ' ' + header.text + ' ',
                   color)
         if header.hotkey is not None:
@@ -2277,7 +2295,7 @@ def unit_test():
     wincolors.status = video_color(BLACK, WHITE, False)
     wincolors.scrollbar = wincolors.border
 
-    win = TextWindow(0, 1, 50, 20, wincolors, title='Hello')
+    win = TextWindow(-5, 1, 50, 20, wincolors, title='Hello')
     win.load('textmode.py')
     win.show()
 
