@@ -396,7 +396,7 @@ class Video(object):
             if not msg:
                 return
 
-        if cw > len(msg):
+        if len(msg) > cw:
             msg = msg[:cw]
             if not msg:
                 return
@@ -787,24 +787,25 @@ class Window(object):
             return
 
         # do window clipping
-        if y < 0 or y >= self.bounds.h:
+        visible, cx, cy, cw = self.bounds.clip_hline(x, y, len(msg))
+        if not visible:
             return
 
+        # clip message
         if x < 0:
             msg = msg[-x:]
             if not msg:
                 return
-            x = 0
 
-        if x + len(msg) >= self.bounds.w:
-            msg = msg[:self.bounds.w - x]
+        if len(msg) > cw:
+            msg = msg[:cw]
             if not msg:
                 return
 
         if color == -1:
             color = self.colors.text
 
-        VIDEO.puts(self.bounds.x + x, self.bounds.y + y, msg, color)
+        VIDEO.puts(self.bounds.x + cx, self.bounds.y + cy, msg, color)
 
     def cputs(self, x, y, msg, color=-1):
         '''print message in window
@@ -817,31 +818,29 @@ class Window(object):
         # starts out the same as puts(), but then clears to EOL
 
         # do window clipping
-        if y < 0 or y >= self.bounds.h:
+        visible, cx, cy, cw = self.bounds.clip_hline(x, y, len(msg))
+        if not visible:
             return
 
+        # clip message
         if x < 0:
             msg = msg[-x:]
-            if not msg:
-                return
-            x = 0
 
-        if x + len(msg) >= self.bounds.w:
-            msg = msg[:self.bounds.w - x]
-            if not msg:
-                return
+        if len(msg) > cw:
+            msg = msg[:cw]
 
         if color == -1:
             color = self.colors.text
 
-        VIDEO.puts(self.bounds.x + x, self.bounds.y + y, msg, color)
+        if len(msg) > 0:
+            VIDEO.puts(self.bounds.x + cx, self.bounds.y + cy, msg, color)
 
         # clear to end of line
         l = len(msg)
-        w_eol = self.bounds.w - l - x
+        w_eol = self.bounds.w - l - cx
         if w_eol > 0:
             clear_eol = ' ' * w_eol
-            VIDEO.puts(self.bounds.x + x + l, self.bounds.y + y,
+            VIDEO.puts(self.bounds.x + cx + l, self.bounds.y + cy,
                        clear_eol, color)
 
 
