@@ -62,6 +62,9 @@ KEY_TABLE = {'0x1b': KEY_ESC, '0x0a': KEY_RETURN, '0x0d': KEY_RETURN,
 
 REGEX_HOTKEY = re.compile(r'.*<((Ctrl-)?[!-~])>.*$')
 
+# window stack
+STACK = None
+
 # debug messages
 DEBUG_LOG = []
 
@@ -739,19 +742,19 @@ class Window(object):
 
         # rect is the outer area; larger because of shadow
         self.rect = Rect(x, y, w + 2, h + 1)
-        self.back = None
+        self.background = None
         self.flags = 0
 
     def save_background(self):
         '''save the background'''
 
-        self.back = VIDEO.getrect(self.rect.x, self.rect.y,
-                                  self.rect.w, self.rect.h)
+        self.background = VIDEO.getrect(self.rect.x, self.rect.y,
+                                        self.rect.w, self.rect.h)
 
     def restore_background(self):
         '''restore the background'''
 
-        VIDEO.putrect(self.rect.x, self.rect.y, self.back)
+        VIDEO.putrect(self.rect.x, self.rect.y, self.background)
 
     def open(self):
         '''open the window'''
@@ -779,9 +782,8 @@ class Window(object):
         if self.flags & Window.SHOWN:
             return
 
-        self.flags |= (Window.SHOWN | Window.FOCUS)
-        self.draw()
-        self.draw_cursor()
+        self.flags |= Window.SHOWN
+        self.front()
 
     def hide(self):
         '''hide the window'''
@@ -791,6 +793,12 @@ class Window(object):
 
         self.restore_background()
         self.flags &= ~(Window.SHOWN | Window.FOCUS)
+        STACK.remove(self)
+        # we have a new top-level window
+        win = STACK.top()
+        if win is not None:
+            win.draw()
+            win.gain_focus()
 
     def gain_focus(self):
         '''event: we got focus'''
@@ -803,6 +811,29 @@ class Window(object):
 
         self.flags &= ~Window.FOCUS
         self.draw_cursor()
+
+    def front(self):
+        '''bring window to front'''
+
+        win = STACK.top()
+        if win is not self:
+            if win is not None:
+                win.lose_focus()
+
+            STACK.front(self)
+            self.draw()
+            self.gain_focus()
+
+    def back(self):
+        '''bring window to back'''
+
+        self.lose_focus()
+        STACK.back(self)
+        # we have a new top-level window
+        win = STACK.top()
+        if win is not None:
+            win.draw()
+            win.gain_focus()
 
     def draw(self):
         '''draw the window'''
@@ -1807,7 +1838,6 @@ class Menu(Window):
         '''run a menu'''
 
         self.show()
-#        self.front()
 
         while True:
             key = getch()
@@ -1997,8 +2027,7 @@ class MenuBar(Window):
 
             if key == KEY_ESC:
                 self.choice = RETURN_TO_PREVIOUS
-#                self.back()
-                self.lose_focus()
+                self.back()
                 return RETURN_TO_PREVIOUS
 
             elif key == KEY_LEFT:
@@ -2016,8 +2045,7 @@ class MenuBar(Window):
                     if choice == RETURN_TO_PREVIOUS:
                         # escape: closed menu
                         self.choice = RETURN_TO_PREVIOUS
-#                        self.back()
-                        self.lose_focus()
+                        self.back()
                         return RETURN_TO_PREVIOUS
 
                     elif choice == MOVE_LEFT:
@@ -2029,10 +2057,49 @@ class MenuBar(Window):
                         self.move_right()
 
                     else:
-#                        self.back()
-                        self.lose_focus()
+                        self.back()
                         self.choice = choice
                         return choice
+
+
+
+class WindowStack(object):
+    '''represents a stack of Windows'''
+
+    def __init__(self):
+        '''initialize'''
+
+        self.stack = []
+
+    def remove(self, win):
+        '''Remove window from stack'''
+
+        assert isinstance(win, Window)
+        try:
+            self.stack.remove(win)
+        except ValueError:
+            # win was not on stack
+            pass
+
+    def front(self, win):
+        '''Move window to front'''
+
+        self.remove(win)
+        self.stack.append(win)
+
+    def back(self, win):
+        '''Move window back'''
+
+        self.remove(win)
+        self.stack.insert(0, win)
+
+    def top(self):
+        '''Returns the top of stack'''
+
+        if not self.stack:
+            return None
+
+        return self.stack[-1]
 
 
 
@@ -2264,9 +2331,10 @@ def getch():
 def init():
     '''initialize module'''
 
-    global VIDEO
+    global VIDEO, STACK
 
     VIDEO = Video()
+    STACK = WindowStack()
 
 
 def unit_test():
@@ -2283,38 +2351,8 @@ def unit_test():
     VIDEO.putch(x, y, 'W')
     VIDEO.putch(x + 1, y, 'J', pinky)
 
-    bgcolors = ColorSet(YELLOW, RED, True)
-    bgwin = Window(15, 6, 50, 16, bgcolors, title='Back')
-    bgwin.show()
-    bgwin.puts(0, 0, 'This is the back window')
-
-    wincolors = ColorSet(WHITE, BLUE, True)
-    wincolors.border = video_color(CYAN, BLUE, True)
-    wincolors.title = video_color(YELLOW, BLUE, True)
-    wincolors.cursor = video_color(WHITE, BLACK, True)
-    wincolors.status = video_color(BLACK, WHITE, False)
-    wincolors.scrollbar = wincolors.border
-
-    win = TextWindow(-5, 1, 50, 20, wincolors, title='Hello')
-    win.load('textmode.py')
-    win.show()
-
-    getch()
-
-    alert_colors = ColorSet(BLACK, WHITE)
-    alert_colors.title = video_color(RED, WHITE)
-    alert_colors.button = video_color(WHITE, BLUE, bold=True)
-    alert_colors.buttonhotkey = video_color(YELLOW, BLUE, bold=True)
-    alert_colors.activebutton = video_color(WHITE, GREEN, bold=True)
-    alert_colors.activebuttonhotkey = video_color(YELLOW, GREEN, bold=True)
-
-    alert = Alert(alert_colors, title='Alert', msg='Failed to load file',
-                  buttons=['<C>ancel', '<O>K'], default=1)
-    alert.show()
-
-    # warning: this is a reference, not a copy ..!
-    menu_colors = alert_colors
-    menu_colors.menuhotkey = alert_colors.title
+    menu_colors = ColorSet(BLACK, WHITE)
+    menu_colors.menuhotkey = video_color(RED, WHITE)
     menu_colors.activemenu = video_color(BLACK, GREEN)
     menu_colors.activemenuhotkey = video_color(RED, GREEN)
 
@@ -2346,6 +2384,33 @@ def unit_test():
                                    '<O>nline help'])
                       ])
     menubar.show()
+
+    bgcolors = ColorSet(YELLOW, RED, True)
+    bgwin = Window(15, 6, 50, 16, bgcolors, title='Back')
+    bgwin.show()
+    bgwin.puts(0, 0, 'This is the back window')
+
+    wincolors = ColorSet(WHITE, BLUE, True)
+    wincolors.border = video_color(CYAN, BLUE, True)
+    wincolors.title = video_color(YELLOW, BLUE, True)
+    wincolors.cursor = video_color(WHITE, BLACK, True)
+    wincolors.status = video_color(BLACK, WHITE, False)
+    wincolors.scrollbar = wincolors.border
+
+    win = TextWindow(0, 1, 60, 20, wincolors, title='Hello')
+    win.load('textmode.py')
+    win.show()
+
+    alert_colors = ColorSet(BLACK, WHITE)
+    alert_colors.title = video_color(RED, WHITE)
+    alert_colors.button = video_color(WHITE, BLUE, bold=True)
+    alert_colors.buttonhotkey = video_color(YELLOW, BLUE, bold=True)
+    alert_colors.activebutton = video_color(WHITE, GREEN, bold=True)
+    alert_colors.activebuttonhotkey = video_color(YELLOW, GREEN, bold=True)
+
+    alert = Alert(alert_colors, title='Alert', msg='Failed to load file',
+                  buttons=['<C>ancel', '<O>K'], default=1)
+    alert.show()
 
     choice = alert.runloop()
     debug('alert choice == %d' % choice)
