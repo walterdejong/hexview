@@ -596,7 +596,7 @@ class Video(object):
         # get the character and redraw with color
         offset = self.w * y + x
         for i in xrange(0, w):
-            ch, color = self.screenbuf[offset]
+            ch, _ = self.screenbuf[offset]
             self.screenbuf[offset] = (ch, color)
             offset += 1
             if isinstance(ch, str):
@@ -619,7 +619,7 @@ class Video(object):
         # get the character and redraw with color
         offset = self.w * y + x
         for j in xrange(0, h):
-            ch, color = self.screenbuf[offset]
+            ch, _ = self.screenbuf[offset]
             self.screenbuf[offset] = (ch, color)
             offset += self.w
             if isinstance(ch, str):
@@ -644,6 +644,8 @@ class Video(object):
 
         if buf is None:
             return
+
+        assert isinstance(buf, ScreenBuf)
 
         visible, x, y, w, h = self.rect.clip_rect(x, y, buf.w, buf.h)
         if not visible:
@@ -2278,6 +2280,8 @@ def unit_test():
     win = TextWindow(0, 1, 50, 20, wincolors, title='Hello')
     win.load('textmode.py')
     win.show()
+
+    getch()
 
     alert_colors = ColorSet(BLACK, WHITE)
     alert_colors.title = video_color(RED, WHITE)
