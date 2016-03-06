@@ -65,6 +65,14 @@ REGEX_HOTKEY = re.compile(r'.*<((Ctrl-)?[!-~])>.*$')
 # debug messages
 DEBUG_LOG = []
 
+# program states
+# these enums are all negative; cursor choices are positive (inc. 0)
+(RETURN_TO_PREVIOUS,
+ GOTO_MENUBAR,
+ MOVE_LEFT,
+ MOVE_RIGHT,
+ ENTER) = range(-1, -6, -1)
+
 
 def debug(msg):
     '''keep message in debug log'''
@@ -484,6 +492,22 @@ class Video(object):
             ch = ord(ch)
         STDSCR.vline(y, x, ch, h, attr)
 
+    def hsplit(self, x, y, w, ch, color=-1):
+        '''draw a horizontal split'''
+
+        self.hline(x + 1, y, w - 2, curses.ACS_HLINE, color)
+        # put tee characters on the sides
+        self.putch(x, y, curses.ACS_LTEE, color)
+        self.putch(x + w - 1, y, curses.ACS_RTEE, color)
+
+    def vsplit(self, x, y, h, ch, color=-1):
+        '''draw a vertical split'''
+
+        self.vline(x, y + 1, h - 2, curses.ACS_VLINE, color)
+        # put tee characters on the sides
+        self.putch(x, y, curses.ACS_TTEE, color)
+        self.putch(x, y + h - 1, curses.ACS_BTEE, color)
+
     def fillrect(self, x, y, w, h, color=-1):
         '''draw rectangle at x, y'''
 
@@ -808,6 +832,17 @@ class Window(object):
 #            ...
         pass
 
+    def putch(self, x, y, ch, color=-1):
+        '''put character in window'''
+
+        if not self.bounds.clip_point(x, y):
+            return
+
+        if color == -1:
+            color = self.colors.text
+
+        VIDEO.putch(self.bounds.x + x, self.bounds.y + y, ch, color)
+
     def puts(self, x, y, msg, color=-1):
         '''print message in window
         Does not clear to end of line
@@ -941,7 +976,7 @@ class TextWindow(Window):
         y = 0
         while y < self.bounds.h:
             if y == self.cursor:
-                # draw_cursor() will be called by Window.draw()
+                # draw_cursor() will be called by Window.show()
                 pass
             else:
                 try:
@@ -1570,6 +1605,224 @@ class Alert(Window):
 
 
 
+class MenuItem(object):
+    '''a single menu item'''
+
+    def __init__(self, label):
+        '''initialize'''
+
+        self.hotkey, self.hotkey_pos, self.text = label_hotkey(label)
+
+
+
+class Menu(Window):
+    '''a (dropdown) menu'''
+
+    def __init__(self, x, y, colors, border=True, items=None, closekey=None):
+        '''initialize'''
+
+        # should really have a list of items
+        assert items is not None
+
+        # determine width and height
+        w = 0
+        for item in items:
+            l = label_length(item) + 2
+            if border:
+                l += 2
+            if l > w:
+                w = l
+        h = len(items)
+        if border:
+            h += 2
+
+        super(Menu, self).__init__(x, y, w, h, colors, None, border)
+
+        # make list of MenuItems
+        self.items = [MenuItem(item) for item in items]
+        self.closekey = closekey
+        self.cursor = 0
+
+    def draw(self):
+        '''draw the window'''
+
+        super(Menu, self).draw()
+        self.draw_items()
+
+    def draw_items(self):
+        '''draw the items'''
+
+        y = 0
+        for item in self.items:
+            if y == self.cursor:
+                # draw_cursor() will be called by Window.show()
+                pass
+            else:
+                # normal entry
+                if item.text == '--':
+                    # separator line
+                    VIDEO.hsplit(self.frame.x, self.bounds.y + y,
+                                 self.frame.w, curses.ACS_HLINE,
+                                 self.colors.border)
+                else:
+                    self.cputs(1, y, item.text, self.colors.menu)
+                    if item.hotkey is not None:
+                        # draw hotkey
+                        self.putch(1 + item.hotkey_pos, y, item.hotkey,
+                                   self.colors.menuhotkey)
+            y += 1
+
+    def draw_cursor(self):
+        '''draw highlighted cursor line'''
+
+        if self.flags & Window.FOCUS:
+            attr = self.colors.activemenu
+            attr_hotkey = self.colors.activemenuhotkey
+        else:
+            attr = self.colors.menu
+            attr_hotkey = self.colors.menuhotkey
+
+        item = self.items[self.cursor]
+        self.cputs(0, self.cursor, ' ' + item.text, attr)
+        if item.hotkey is not None:
+            # draw hotkey
+            self.putch(1 + item.hotkey_pos, self.cursor, item.hotkey,
+                       attr_hotkey)
+
+    def clear_cursor(self):
+        '''erase the cursor'''
+
+        item = self.items[self.cursor]
+        self.cputs(0, self.cursor, ' ' + item.text, self.colors.menu)
+        if item.hotkey is not None:
+            # draw hotkey
+            self.putch(1 + item.hotkey_pos, self.cursor, item.hotkey,
+                       self.colors.menuhotkey)
+
+    def selection(self):
+        '''Returns plaintext of currently selected item'''
+
+        item = self.items[self.cursor]
+        return item.text
+
+    def move_up(self):
+        '''move up'''
+
+        self.clear_cursor()
+        self.cursor -= 1
+        if self.cursor < 0:
+            self.cursor += len(self.items)
+
+        if self.items[self.cursor].text == '--':
+            # skip over separator line
+            self.cursor -= 1
+            assert self.cursor >= 0
+            assert self.items[self.cursor].text != '--'
+
+        self.draw_cursor()
+
+    def move_down(self):
+        '''move down'''
+
+        self.clear_cursor()
+        self.cursor += 1
+        if self.cursor >= len(self.items):
+            self.cursor = 0
+
+        if self.items[self.cursor].text == '--':
+            # skip over separator line
+            self.cursor += 1
+            assert self.cursor < len(self.items)
+            assert self.items[self.cursor].text != '--'
+
+        self.draw_cursor()
+
+    def goto_top(self):
+        '''go to top of menu'''
+
+        if self.cursor == 0:
+            return
+
+        self.clear_cursor()
+        self.cursor = 0
+        self.draw_cursor()
+
+    def goto_bottom(self):
+        '''go to bottom of menu'''
+
+        if self.cursor >= len(self.items) - 1:
+            return
+
+        self.clear_cursor()
+        self.cursor = len(self.items) - 1
+        self.draw_cursor()
+
+    def push_hotkey(self, key):
+        '''Returns True if the hotkey was pressed'''
+
+        key = key.upper()
+        y = 0
+        for item in self.items:
+            if item.hotkey == key:
+                if self.cursor != y:
+                    self.clear_cursor()
+                    self.cursor = y
+                    self.draw_cursor()
+                    # give visual feedback
+                    STDSCR.refresh()
+                    curses.doupdate()
+                    time.sleep(0.1)
+
+                return True
+
+            y += 1
+
+        return False
+
+    def runloop(self):
+        '''run a menu'''
+
+        self.show()
+#        self.front()
+
+        while True:
+            key = getch()
+
+            if (key == KEY_ESC or key == self.closekey or
+                    key.upper() == self.closekey):
+                self.close()
+                return -1
+
+            elif key == KEY_LEFT or key == KEY_BTAB:
+                self.close()
+                return MOVE_LEFT
+
+            elif key == KEY_RIGHT or key == KEY_TAB:
+                self.close()
+                return MOVE_RIGHT
+
+            elif key == KEY_UP:
+                self.move_up()
+
+            elif key == KEY_DOWN:
+                self.move_down()
+
+            elif key == KEY_PAGEUP or key == KEY_HOME:
+                self.goto_top()
+
+            elif key == KEY_PAGEDOWN or key == KEY_END:
+                self.goto_bottom()
+
+            elif key == KEY_RETURN or key == ' ':
+                self.close()
+                return self.cursor
+
+            elif self.push_hotkey(key):
+                self.close()
+                return self.cursor
+
+
+
 def video_color(fg, bg=None, bold=False):
     '''Returns combined (ScreenBuf) color code'''
 
@@ -1846,7 +2099,23 @@ def unit_test():
                   buttons=['<C>ancel', '<O>K'], default=1)
     alert.show()
     choice = alert.runloop()
-    debug('choice == %d' % choice)
+    debug('alert choice == %d' % choice)
+
+    # warning: this is a reference, not a copy ..!
+    menu_colors = alert_colors
+    menu_colors.menuhotkey = alert_colors.title
+    menu_colors.activemenu = video_color(BLACK, GREEN)
+    menu_colors.activemenuhotkey = video_color(RED, GREEN)
+
+    menu = Menu(20, 8, menu_colors, border=True,
+                items=['<N>ew       Ctrl-N',
+                       '<L>oad      Ctrl-L',
+                       '<S>ave      Ctrl-S',
+                       '--',
+                       '<P>rint     Ctrl-P'])
+    menu.show()
+    choice = menu.runloop()
+    debug('menu choice == %d' % choice)
 
     win.runloop()
 
