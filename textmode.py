@@ -2254,6 +2254,15 @@ def unit_test():
 
     init()
 
+    pinky = VIDEO.set_color(YELLOW, MAGENTA)
+    VIDEO.set_color(YELLOW, GREEN)
+
+    x = VIDEO.w / 2 - 1
+    y = VIDEO.h / 2
+
+    VIDEO.putch(x, y, 'W')
+    VIDEO.putch(x + 1, y, 'J', pinky)
+
     bgcolors = ColorSet(YELLOW, RED, True)
     bgwin = Window(15, 6, 50, 16, bgcolors, title='Back')
     bgwin.show()
@@ -2269,15 +2278,6 @@ def unit_test():
     win = TextWindow(0, 1, 50, 20, wincolors, title='Hello')
     win.load('textmode.py')
     win.show()
-
-    pinky = VIDEO.set_color(YELLOW, MAGENTA)
-    VIDEO.set_color(YELLOW, GREEN)
-
-    x = VIDEO.w / 2 - 1
-    y = VIDEO.h / 2
-
-    VIDEO.putch(x, y, 'W')
-    VIDEO.putch(x + 1, y, 'J', pinky)
 
     alert_colors = ColorSet(BLACK, WHITE)
     alert_colors.title = video_color(RED, WHITE)
@@ -2338,6 +2338,8 @@ def unit_test():
     win.close()
     bgwin.cputs(0, 0, 'Bye!')
 
+    getch()
+    bgwin.close()
     getch()
 
     terminate()
