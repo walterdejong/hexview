@@ -9,6 +9,7 @@ import os
 import re
 import sys
 import time
+import traceback
 
 # the main video object
 VIDEO = None
@@ -51,7 +52,7 @@ KEY_END = 'END'
 KEY_DEL = 'DEL'
 KEY_BS = 'BS'
 
-KEY_TABLE = {'0x1b': KEY_ESC, '0x0a': KEY_RETURN,
+KEY_TABLE = {'0x1b': KEY_ESC, '0x0a': KEY_RETURN, '0x0d': KEY_RETURN,
              '0x09': KEY_TAB, '0x161': KEY_BTAB,
              '0x102': KEY_DOWN, '0x103': KEY_UP,
              '0x104': KEY_LEFT, '0x105': KEY_RIGHT,
@@ -287,7 +288,7 @@ class Rect(object):
         If visible, returns clipped tuple: True, x, y, w
         '''
 
-        if y < 0 or y >= self.h:
+        if x + w < 0 or x >= self.w or y < 0 or y >= self.h:
             return False, -1, -1, -1
 
         if x < 0:
@@ -304,7 +305,7 @@ class Rect(object):
         If visible, returns clipped tuple: True, x, y, h
         '''
 
-        if x < 0 or x >= self.w:
+        if x < 0 or x >= self.w or y + h < 0 or y >= self.h:
             return False, -1, -1, -1
 
         if y < 0:
@@ -364,7 +365,6 @@ class Video(object):
 
         self.color = video_color(fg, bg, bold)
         self.curses_color = curses_color(fg, bg, bold)
-        STDSCR.attrset(self.curses_color)
         return self.color
 
     def putch(self, x, y, ch, color=-1):
@@ -381,7 +381,7 @@ class Video(object):
             attr = curses_color(color)
 
         self.screenbuf[x, y] = (ch, color)
-        STDSCR.addch(y, x, ch, attr)
+        self.curses_putch(x, y, ch, attr)
 
     def puts(self, x, y, msg, color=-1):
         '''write message at x, y'''
@@ -408,7 +408,45 @@ class Video(object):
             attr = curses_color(color)
 
         self.screenbuf.puts(cx, cy, msg, color)
-        STDSCR.addstr(cy, cx, msg, attr)
+        self.curses_puts(cx, cy, msg, attr)
+
+    def curses_putch(self, x, y, ch, attr=None):
+        '''put character into the curses screen x, y'''
+
+        # curses.addch() has issues with drawing in the right bottom corner
+        # because it wants to scroll, but it can't
+        # curses.insch() messes up the screen royally, because it inserts
+        # the character and pushes the remainder of the line forward
+        # Both aren't ideal to work with, but we _can_ use insch()
+        # at the end of screen
+        # Note that it doesn't matter whether you use scrollok() or not
+
+        if attr is None:
+            attr = self.curses_color
+
+        if y >= self.h - 1 and x >= self.w - 1:
+            STDSCR.insch(y, x, ch, attr)
+        else:
+            STDSCR.addch(y, x, ch, attr)
+
+    def curses_puts(self, x, y, msg, attr=None):
+        '''print message into the curses screen at x, y'''
+
+        # curses.addstr() has issues with drawing in the right bottom corner
+        # because it wants to scroll, but it can't
+        # curses.insstr() messes up the screen royally, because it inserts text
+        # and pushes the remainder of the line forward
+        # Both aren't ideal to work with, but we _can_ use insstr()
+        # at the end of screen
+        # Note that it doesn't matter whether you use scrollok() or not
+
+        if attr is None:
+            attr = self.curses_color
+
+        if y >= self.h - 1 and x + len(msg) >= self.w:
+            STDSCR.insstr(y, x, msg, attr)
+        else:
+            STDSCR.addstr(y, x, msg, attr)
 
     def hline(self, x, y, w, ch, color=-1):
         '''draw horizontal line at x, y'''
@@ -432,6 +470,8 @@ class Video(object):
         '''draw vertical line at x, y'''
 
         visible, x, y, h = self.rect.clip_vline(x, y, h)
+        if not visible:
+            return
 
         if color == -1:
             color = self.color
@@ -457,15 +497,9 @@ class Video(object):
         else:
             attr = curses_color(color)
 
-        # temporarily change the current curses color
-        STDSCR.attrset(attr)
-
         for j in xrange(0, h):
             self.screenbuf.hline(x, y + j, w, ' ', color)
-            STDSCR.hline(y + j, x, ' ', w)
-
-        # restore curses color
-        STDSCR.attrset(self.curses_color)
+            STDSCR.hline(y + j, x, ' ', w, attr)
 
     def border(self, x, y, w, h, color=-1):
         '''draw rectangle border'''
@@ -480,51 +514,47 @@ class Video(object):
         else:
             attr = curses_color(color)
 
-        STDSCR.attrset(attr)
-
         # top
         if y >= 0 and y < self.h:
             self.screenbuf.hline(cx, y, cw, curses.ACS_HLINE, color)
-            STDSCR.hline(y, cx, curses.ACS_HLINE, cw)
+            STDSCR.hline(y, cx, curses.ACS_HLINE, cw, attr)
 
         # left
         if x >= 0 and x < self.w:
             self.screenbuf.vline(x, cy, ch, curses.ACS_VLINE, color)
-            STDSCR.vline(cy, x, curses.ACS_VLINE, ch)
+            STDSCR.vline(cy, x, curses.ACS_VLINE, ch, attr)
 
         # right
         rx = x + w - 1
         if rx >= 0 and rx < self.w:
             self.screenbuf.vline(rx, cy, ch, curses.ACS_VLINE, color)
-            STDSCR.vline(cy, rx, curses.ACS_VLINE, ch)
+            STDSCR.vline(cy, rx, curses.ACS_VLINE, ch, attr)
 
         # bottom
         by = y + h - 1
         if by >= 0 and by < self.h:
             self.screenbuf.hline(cx, by, cw, curses.ACS_HLINE, color)
-            STDSCR.hline(by, cx, curses.ACS_HLINE, cw)
+            STDSCR.hline(by, cx, curses.ACS_HLINE, cw, attr)
 
         # top left corner
         if self.rect.clip_point(x, y):
             self.screenbuf[x, y] = (curses.ACS_ULCORNER, color)
-            STDSCR.addch(y, x, curses.ACS_ULCORNER)
+            self.curses_putch(x, y, curses.ACS_ULCORNER, attr)
 
         # bottom left corner
         if self.rect.clip_point(x, by):
             self.screenbuf[x, by] = (curses.ACS_LLCORNER, color)
-            STDSCR.addch(by, x, curses.ACS_LLCORNER)
+            self.curses_putch(x, by, curses.ACS_LLCORNER, attr)
 
         # top right corner
         if self.rect.clip_point(rx, y):
             self.screenbuf[rx, y] = (curses.ACS_URCORNER, color)
-            STDSCR.addch(y, rx, curses.ACS_URCORNER)
+            self.curses_putch(rx, y, curses.ACS_URCORNER, attr)
 
         # bottom right corner
         if self.rect.clip_point(rx, by):
             self.screenbuf[rx, by] = (curses.ACS_LRCORNER, color)
-            STDSCR.addch(by, rx, curses.ACS_LRCORNER)
-
-        STDSCR.attrset(self.curses_color)
+            self.curses_putch(rx, by, curses.ACS_LRCORNER, attr)
 
     def color_hline(self, x, y, w, color=-1):
         '''draw horizontal color line'''
@@ -547,7 +577,7 @@ class Video(object):
             offset += 1
             if isinstance(ch, str):
                 ch = ord(ch)
-            STDSCR.addch(y, x + i, ch, attr)
+            self.curses_putch(x + i, y, ch, attr)
 
     def color_vline(self, x, y, h, color=-1):
         '''draw vertical colored line'''
@@ -570,7 +600,7 @@ class Video(object):
             offset += self.w
             if isinstance(ch, str):
                 ch = ord(ch)
-            STDSCR.addch(y + j, x, ch, attr)
+            self.curses_putch(x, y + j, ch, attr)
 
     def getrect(self, x, y, w, h):
         '''Returns ScreenBuf object with copy of x,y,w,h
@@ -611,7 +641,7 @@ class Video(object):
                     attr = curses_color(color)
 
                 offset += 1
-                STDSCR.addch(y + j, x + i, ch, attr)
+                self.curses_putch(x + i, y + j, ch, attr)
             offset += self.w - w
 
 
@@ -1318,7 +1348,12 @@ class Button(Widget):
 
         xpos = self.x
         if self.pushing:
+            # clear on left side
+            self.parent.puts(xpos, self.y, ' ')
             xpos += 1
+        else:
+            # clear on right side
+            self.parent.puts(xpos + button_width(self.label), self.y, ' ')
 
         self.parent.puts(xpos, self.y, text, color)
 
@@ -1339,13 +1374,13 @@ class Button(Widget):
 
         # animate button
         self.pushing = True
-        self.parent.draw()
+        self.draw()
         STDSCR.refresh()
         curses.doupdate()
         time.sleep(0.1)
 
         self.pushing = False
-        self.parent.draw()
+        self.draw()
         STDSCR.refresh()
         curses.doupdate()
         time.sleep(0.1)
@@ -1684,6 +1719,14 @@ def init_curses():
     STDSCR.keypad(1)
     curses.raw()
     curses.curs_set(0)
+    curses.nonl()
+    curses.noqiflush()
+
+    # do not scroll the screen, ever
+    # even though these settings seem to have no effect (?)
+    STDSCR.scrollok(False)
+    STDSCR.idlok(False)
+    STDSCR.idcok(False)
 
     # init colors in same order as the color 'enums'
     # Sadly, curses.CODES do not exist until initscr() is done
@@ -1713,6 +1756,9 @@ def terminate():
         curses.endwin()
 
     dump_debug()
+
+    sys.stdout.flush()
+    sys.stderr.flush()
 
 
 def getch():
@@ -1814,7 +1860,11 @@ def unit_test():
 
 
 if __name__ == '__main__':
-    unit_test()
-
+    try:
+        unit_test()
+    except:
+        terminate()
+        traceback.print_exc()
+        raw_input('hit return')
 
 # EOB
