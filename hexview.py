@@ -18,6 +18,12 @@ from textmode import debug
 class HexWindow(textmode.Window):
     '''hex viewer main window'''
 
+    OPT_8_BIT = 1
+    OPT_16_BIT = 2
+    OPT_16_BIT_SWAP = 3
+    OPT_32_BIT = 4
+    OPT_32_BIT_SWAP = 5
+
     def __init__(self, x, y, w, h, colors, title=None, border=True):
         '''initialize'''
 
@@ -30,6 +36,7 @@ class HexWindow(textmode.Window):
         self.address = 0
         self.cursor_x = 0
         self.cursor_y = 0
+        self.view_option = HexWindow.OPT_8_BIT
 
     def load(self, filename):
         '''load file
@@ -80,25 +87,94 @@ class HexWindow(textmode.Window):
     def draw_bytes(self, y):
         '''draw bytes for line y'''
 
+        if self.view_option == HexWindow.OPT_8_BIT:
+            self.draw_bytes_8bit(y)
+
+        elif self.view_option == HexWindow.OPT_16_BIT:
+            self.draw_bytes_16bit(y)
+
+        elif self.view_option == HexWindow.OPT_16_BIT_SWAP:
+            self.draw_bytes_16bit_swap(y)
+
+    def draw_bytes_8bit(self, y):
+        '''draw single bytes'''
+
         # two side-by-side groups of 8 bytes
 
         x = 10
+        offset = self.address + y * 16
         for i in xrange(0, 8):
             try:
-                self.puts(x, y, '%02X' % self.data[self.address + y * 16 + i],
-                          self.colors.text)
+                self.puts(x, y, '%02X' % self.data[offset], self.colors.text)
             except IndexError:
                 self.puts(x, y, '   ')
+            offset += 1
             x += 3
         
         x += 1
         for i in xrange(0, 8):
             try:
-                self.puts(x, y, '%02X' % self.data[self.address + y * 16 + i],
-                          self.colors.text)
+                self.puts(x, y, '%02X' % self.data[offset], self.colors.text)
             except IndexError:
                 self.puts(x, y, '   ')
+            offset += 1
             x += 3
+
+    def draw_bytes_16bit(self, y):
+        '''draw 16-bit words'''
+
+        # two side-by-side groups of 4 16-bit words
+
+        x = 10
+        offset = self.address + y * 16
+        for i in xrange(0, 4):
+            try:
+                self.puts(x, y, '%02X%02X' % (self.data[offset],
+                                              self.data[offset + 1]),
+                          self.colors.text)
+            except IndexError:
+                self.puts(x, y, '     ')
+            offset += 2
+            x += 5
+        
+        x += 5
+        for i in xrange(0, 4):
+            try:
+                self.puts(x, y, '%02X%02X' % (self.data[offset],
+                                              self.data[offset + 1]),
+                          self.colors.text)
+            except IndexError:
+                self.puts(x, y, '     ')
+            offset += 2
+            x += 5
+
+    def draw_bytes_16bit_swap(self, y):
+        '''draw 16-bit words, swapped'''
+
+        # two side-by-side groups of 4 16-bit words
+
+        x = 10
+        offset = self.address + y * 16
+        for i in xrange(0, 4):
+            try:
+                self.puts(x, y, '%02X%02X' % (self.data[offset + 1],
+                                              self.data[offset]),
+                          self.colors.text)
+            except IndexError:
+                self.puts(x, y, '     ')
+            offset += 2
+            x += 5
+        
+        x += 5
+        for i in xrange(0, 4):
+            try:
+                self.puts(x, y, '%02X%02X' % (self.data[offset + 1],
+                                              self.data[offset]),
+                          self.colors.text)
+            except IndexError:
+                self.puts(x, y, '     ')
+            offset += 2
+            x += 5
 
     def draw_ascii(self, y):
         '''draw ascii bytes for line y'''
@@ -123,27 +199,62 @@ class HexWindow(textmode.Window):
         if color == -1:
             color = self.colors.cursor
 
-        # draw hex bytes cursor
-        x = 10 + self.cursor_x * 3
-        if self.cursor_x >= 8:
-            x += 1
         y = self.cursor_y
         try:
             ch = self.data[self.address + y * 16 + self.cursor_x]
         except IndexError:
             # FIXME IndexError due to cursor movement should be prevented
             ch = ord(' ')
-        else:
-            self.puts(x, y, '%02X' % ch, color)
 
-        # draw ascii cursor
-        x = 60 + self.cursor_x
+        # position of hex bytes cursor depends on view_option
+        if self.view_option == HexWindow.OPT_8_BIT:
+            self.draw_cursor_8bit(ch, color)
+
+        elif self.view_option == HexWindow.OPT_16_BIT:
+            self.draw_cursor_16bit(ch, color)
+
+        elif self.view_option == HexWindow.OPT_16_BIT_SWAP:
+            self.draw_cursor_16bit_swap(ch, color)
+
+        self.draw_ascii_cursor(ch, color)
+
+    def draw_ascii_cursor(self, ch, color):
+        '''draw ascii cursor'''
+
         if ch >= ord(' ') and ch <= ord('~'):
             ch = chr(ch)
         else:
             ch = '.'
 
-        self.putch(x, y, ch, color)
+        self.putch(60 + self.cursor_x, self.cursor_y, ch, color)
+
+    def draw_cursor_8bit(self, ch, color):
+        '''draw hex bytes cursor'''
+
+        x = 10 + self.cursor_x * 3
+        if self.cursor_x >= 8:
+            x += 1
+        self.puts(x, self.cursor_y, '%02X' % ch, color)
+
+    def draw_cursor_16bit(self, ch, color):
+        '''draw hex bytes cursor'''
+
+        x = 10 + int(self.cursor_x / 2.0 * 5)
+        if self.cursor_x >= 8:
+            x += 5
+        self.puts(x, self.cursor_y, '%02X' % ch, color)
+
+    def draw_cursor_16bit_swap(self, ch, color):
+        '''draw hex bytes cursor'''
+
+        x = 10 + int(self.cursor_x / 2.0 * 5)
+        if self.cursor_x >= 8:
+            x += 5
+        if self.cursor_x & 1:
+            x -= 2
+        else:
+            x += 2
+        self.puts(x, self.cursor_y, '%02X' % ch, color)
 
     def clear_cursor(self):
         '''clear the cursor'''
@@ -347,6 +458,34 @@ class HexWindow(textmode.Window):
         self.cursor_y = self.bounds.h - 1
         self.draw_cursor()
 
+    def select_view(self, key):
+        '''set view option'''
+
+        update = False
+        if key == '1' and self.view_option != HexWindow.OPT_8_BIT:
+            self.view_option = HexWindow.OPT_8_BIT
+            update = True
+
+        elif key == '2' and self.view_option != HexWindow.OPT_16_BIT:
+            self.view_option = HexWindow.OPT_16_BIT
+            update = True
+
+        elif key == '3' and self.view_option != HexWindow.OPT_16_BIT_SWAP:
+            self.view_option = HexWindow.OPT_16_BIT_SWAP
+            update = True
+
+        elif key == '4' and self.view_option != HexWindow.OPT_32_BIT:
+            self.view_option = HexWindow.OPT_32_BIT
+            update = True
+
+        elif key == '5' and self.view_option != HexWindow.OPT_32_BIT_SWAP:
+            self.view_option = HexWindow.OPT_16_BIT_SWAP
+            update = True
+
+        if update:
+            self.draw()
+            self.draw_cursor()
+
     def runloop(self):
         '''run the input loop
         Returns state change code
@@ -389,6 +528,9 @@ class HexWindow(textmode.Window):
 
             elif key == KEY_END:
                 self.goto_bottom()
+
+            elif key in ('1', '2', '3', '4', '5'):
+                self.select_view(key)
 
 
 
