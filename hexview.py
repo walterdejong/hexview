@@ -252,6 +252,31 @@ class HexWindow(textmode.Window):
 
         self.draw_cursor()
 
+    def roll_left(self):
+        '''move left by one byte'''
+
+        if not self.address:
+            return
+
+        self.address -= 1
+        self.draw()
+        self.draw_cursor()
+
+    def roll_right(self):
+        '''move right by one byte'''
+
+        # round up to nearest 16
+        num = len(self.data)
+        remainder = num % 16
+        if remainder > 0:
+            num += 16 - remainder
+
+        top = num - self.bounds.h * 16
+        if self.address < top:
+            self.address += 1
+            self.draw()
+            self.draw_cursor()
+
     def pageup(self):
         '''page up'''
 
@@ -346,6 +371,12 @@ class HexWindow(textmode.Window):
 
             elif key == KEY_RIGHT:
                 self.move_right()
+
+            elif key == '<' or key == ',':
+                self.roll_left()
+
+            elif key == '>' or key == '.':
+                self.roll_right()
 
             elif key == KEY_PAGEUP:
                 self.pageup()
