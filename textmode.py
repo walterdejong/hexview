@@ -74,7 +74,11 @@ DEBUG_LOG = []
  GOTO_MENUBAR,
  MENU_LEFT,
  MENU_RIGHT,
- MENU_CLOSE) = range(-1, -6, -1)
+ MENU_CLOSE,
+ CANCEL,
+ ENTER,
+ BACK,
+ NEXT) = range(-1, -10, -1)
 
 
 def debug(msg):
@@ -2076,6 +2080,117 @@ class MenuBar(Window):
 
 
 
+class TextField(Widget):
+    '''single line of text input'''
+
+    def __init__(self, parent, x, y, w, colors):
+        '''initialize'''
+
+        super(TextField, self).__init__(parent, x, y, colors)
+
+        self.w = w
+        self.text = ''
+        self.cursor = 0
+
+    def draw(self):
+        '''draw the TextField'''
+
+        w = len(self.text)
+        VIDEO.puts(self.x, self.y, self.text, self.colors.text)
+        # clear to EOL
+        VIDEO.hline(self.x + w, self.y, self.w - w, ' ', self.colors.text)
+
+        self.draw_cursor()
+
+    def draw_cursor(self):
+        '''draw the cursor'''
+
+        if self.has_focus:
+            # draw cursor
+            if self.cursor < len(self.text):
+                ch = self.text[self.cursor]
+            else:
+                ch = ' '
+            VIDEO.putch(self.x + self.cursor, self.y, ch, self.colors.cursor)
+
+    def clear(self):
+        '''clears the TextField onscreen (not the TextField content)'''
+
+        VIDEO.hline(self.x, self.y, self.w, ' ', self.colors.text)
+
+    def runloop(self):
+        '''run the TextField'''
+
+        self.gain_focus()
+
+        while True:
+            key = getch()
+
+            if key == KEY_ESC:
+                self.text = ''
+                self.cursor = 0
+                self.lose_focus()
+                self.clear()
+                return RETURN_TO_PREVIOUS
+
+            elif key == KEY_BTAB:
+                self.lose_focus()
+                self.clear()
+                return BACK
+
+            elif key == KEY_TAB:
+                self.lose_focus()
+                self.clear()
+                return NEXT
+
+            elif key == KEY_RETURN:
+                self.lose_focus()
+                self.clear()
+                return ENTER
+
+            elif key == KEY_BS:
+                if self.cursor > 0:
+                    self.text = (self.text[:self.cursor - 1] +
+                                 self.text[self.cursor:])
+                    self.cursor -= 1
+                    self.draw()
+
+            elif key == KEY_DEL:
+                if self.cursor < len(self.text):
+                    self.text = (self.text[:self.cursor] +
+                                 self.text[self.cursor + 1:])
+                    self.draw()
+
+            elif key == KEY_LEFT:
+                if self.cursor > 0:
+                    self.cursor -= 1
+                    self.draw()
+
+            elif key == KEY_RIGHT:
+                if self.cursor < len(self.text):
+                    self.cursor += 1
+                    self.draw()
+
+            elif key == KEY_HOME:
+                if self.cursor > 0:
+                    self.cursor = 0
+                    self.draw()
+
+            elif key == KEY_END:
+                if self.cursor != len(self.text):
+                    self.cursor = len(self.text)
+                    self.draw()
+
+            elif len(key) == 1 and len(self.text) < self.w:
+                val = ord(key)
+                if val >= ord(' ') and val <= ord('~'):
+                    self.text = (self.text[:self.cursor] + key +
+                                 self.text[self.cursor:])
+                    self.cursor += 1
+                    self.draw()
+
+
+
 class WindowStack(object):
     '''represents a stack of Windows'''
 
@@ -2425,6 +2540,21 @@ def unit_test():
                   buttons=['<C>ancel', '<O>K'], default=1)
     alert.show()
 
+
+    alert.runloop()
+
+    colors = ColorSet(WHITE, BLACK)
+    colors.cursor = video_color(WHITE, GREEN, bold=True)
+    textfield = TextField(None, 1, VIDEO.h - 1, VIDEO.w - 1, colors)
+    VIDEO.putch(0, VIDEO.h - 1, ':', video_color(WHITE, BLACK))
+    textfield.draw()
+    textfield.runloop()
+    # clear the ':' prompt
+    VIDEO.putch(0, VIDEO.h - 1, ' ', video_color(WHITE, BLACK))
+
+    debug('text == "%s"' % textfield.text)
+
+
     # main loop
     while True:
         view = STACK.top()
@@ -2450,5 +2580,6 @@ if __name__ == '__main__':
         terminate()
         traceback.print_exc()
         raw_input('hit return')
+
 
 # EOB
