@@ -81,7 +81,7 @@ DEBUG_LOG = []
  BACK,
  NEXT,
  EXIT,
- QUIT) = range(-1, -11, -1)
+ QUIT) = range(-1, -12, -1)
 
 
 def debug(msg):
