@@ -70,6 +70,7 @@ DEBUG_LOG = []
 
 # program states
 # these enums are all negative; cursor choices are positive (inc. 0)
+# FIXME cleanup app codes list, use the shorter codes
 (RETURN_TO_PREVIOUS,
  GOTO_MENUBAR,
  MENU_LEFT,
@@ -78,7 +79,9 @@ DEBUG_LOG = []
  CANCEL,
  ENTER,
  BACK,
- NEXT) = range(-1, -10, -1)
+ NEXT,
+ EXIT,
+ QUIT) = range(-1, -11, -1)
 
 
 def debug(msg):
