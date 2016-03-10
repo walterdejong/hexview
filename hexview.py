@@ -842,6 +842,54 @@ class HexWindow(textmode.Window):
             elif key in ('v', 'V', 'Ctrl-V'):
                 self.mode_selection()
 
+            elif key == ':':
+                # command mode
+                # FIXME clean this up
+                colors = textmode.ColorSet(WHITE, BLACK)
+                colors.cursor = textmode.video_color(WHITE, GREEN, bold=True)
+                textfield = textmode.TextField(self, 1, VIDEO.h - 1,
+                                               VIDEO.w - 1, colors)
+                VIDEO.putch(0, VIDEO.h - 1, ':', colors.text)
+                textfield.draw()
+                textfield.runloop()
+                VIDEO.putch(0, VIDEO.h - 1, ' ', colors.text)
+                if textfield.text == 'q' or textfield.text == 'q!':
+                    return textmode.QUIT
+
+                if textfield.text in ('wq', 'wq!', 'ZZ'):
+                    return textmode.EXIT
+
+            elif key == '?':
+                # find backwards
+                # FIXME clean this up
+                colors = textmode.ColorSet(WHITE, BLACK)
+                colors.cursor = textmode.video_color(WHITE, GREEN, bold=True)
+                textfield = textmode.TextField(self, 1, VIDEO.h - 1,
+                                               VIDEO.w - 1, colors)
+                VIDEO.putch(0, VIDEO.h - 1, '?', colors.text)
+                textfield.draw()
+                textfield.runloop()
+                VIDEO.putch(0, VIDEO.h - 1, ' ', colors.text)
+                # TODO implement backward search
+
+            elif key == '/':
+                # find
+                # FIXME clean this up
+                colors = textmode.ColorSet(WHITE, BLACK)
+                colors.cursor = textmode.video_color(WHITE, GREEN, bold=True)
+                textfield = textmode.TextField(self, 1, VIDEO.h - 1,
+                                               VIDEO.w - 1, colors)
+                VIDEO.putch(0, VIDEO.h - 1, '/', colors.text)
+                textfield.draw()
+                textfield.runloop()
+                VIDEO.putch(0, VIDEO.h - 1, ' ', colors.text)
+                # TODO implement forward search
+
+            elif key == 'n' or key == 'Ctrl-G':
+                # search again (note: maybe backwards)
+                # TODO implement search again
+                pass
+
 
 
 def hexview_main():
