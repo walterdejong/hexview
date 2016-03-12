@@ -287,6 +287,11 @@ class Rect(object):
         self.w = w
         self.h = h
 
+    def __str__(self):
+        '''Returns string representation'''
+
+        return '{%d, %d, %d, %d}' % (self.x, self.y, self.w, self.h)
+
     def clamp(self, x, y):
         '''Returns clamped tuple: x, y'''
 
@@ -728,6 +733,8 @@ class ColorSet(object):
         self.menuhotkey = self.text
         self.activemenu = self.text
         self.activemenuhotkey = self.text
+
+        self.prompt = self.text
 
 
 
@@ -2198,6 +2205,46 @@ class TextField(Widget):
                     self.draw()
 
 
+class CmdLine(Window):
+    '''command line: single line with prompt'''
+
+    def __init__(self, x, y, w, colors, prompt=None):
+        '''initialize'''
+
+        super(CmdLine, self).__init__(x, y, w, 1, colors, title=None,
+                                      border=False)
+        x = self.bounds.x
+        w = self.bounds.w
+        self.prompt = prompt
+        if self.prompt is not None:
+            x += len(self.prompt)
+            w -= len(self.prompt)
+            if w < 1:
+                w = 1
+
+        self.textfield = TextField(self, x, self.bounds.y, w, colors)
+
+    def draw(self):
+        '''draw the command line'''
+
+        if self.prompt is not None:
+            self.puts(0, 0, self.prompt, self.colors.prompt)
+
+        self.textfield.draw()
+
+    def draw_cursor(self):
+        '''draw the cursor'''
+
+        self.textfield.draw_cursor()
+
+    def runloop(self):
+        '''run the command line window'''
+
+        ret = self.textfield.runloop()
+        self.close()
+        return ret
+
+
 
 class WindowStack(object):
     '''represents a stack of Windows'''
@@ -2578,15 +2625,8 @@ def unit_test():
 
     colors = ColorSet(WHITE, BLACK)
     colors.cursor = video_color(WHITE, GREEN, bold=True)
-    textfield = TextField(None, 1, VIDEO.h - 1, VIDEO.w - 1, colors)
-    VIDEO.putch(0, VIDEO.h - 1, ':', video_color(WHITE, BLACK))
-    textfield.draw()
-    textfield.runloop()
-    # clear the ':' prompt
-    VIDEO.putch(0, VIDEO.h - 1, ' ', video_color(WHITE, BLACK))
-
-    debug('text == "%s"' % textfield.text)
-
+    cmdline = CmdLine(0, VIDEO.h - 1, VIDEO.w, colors, ':')
+    cmdline.show()
 
     # main loop
     while True:
