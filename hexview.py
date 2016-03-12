@@ -38,11 +38,11 @@ class HexWindow(textmode.Window):
         self.mmap = None
 
         self.address = 0
-        self.cursor_x = 0
-        self.cursor_y = 0
+        self.cursor_x = self.cursor_y = 0
         self.view_option = HexWindow.OPT_8_BIT
         self.mode = 0
         self.selection_start = self.selection_end = 0
+        self.old_addr = old_x = self.old_y = 0
 
     def load(self, filename):
         '''load file
@@ -634,10 +634,7 @@ class HexWindow(textmode.Window):
             return
 
         self.address -= 1
-        if self.mode & HexWindow.MODE_SELECT:
-            self.update_selection()
-        else:
-            self.draw()
+        self.draw()
         self.draw_cursor()
 
     def roll_right(self):
@@ -652,10 +649,7 @@ class HexWindow(textmode.Window):
         top = num - self.bounds.h * 16
         if self.address < top:
             self.address += 1
-            if self.mode & HexWindow.MODE_SELECT:
-                self.update_selection()
-            else:
-                self.draw()
+            self.draw()
             self.draw_cursor()
 
     def pageup(self):
@@ -671,24 +665,31 @@ class HexWindow(textmode.Window):
             self.draw_cursor()
             return
 
-        self.scroll_up(self.bounds.h - 1)
+        if self.cursor_y == self.bounds.h - 1:
+            self.clear_cursor()
+            self.cursor_y = 0
+        else:
+            self.scroll_up(self.bounds.h - 1)
+
         self.update_selection()
         self.draw_cursor()
 
     def pagedown(self):
         '''page down'''
 
-        addr = self.address
-
-        self.scroll_down(self.bounds.h - 1)
-
-        if self.address == addr:
-            # no change
-            if self.cursor_y >= self.bounds.h - 1:
-                return
-
+        if self.cursor_y == 0:
             self.clear_cursor()
             self.cursor_y = self.bounds.h - 1
+        else:
+            addr = self.address
+            self.scroll_down(self.bounds.h - 1)
+            if self.address == addr:
+                # no change
+                if self.cursor_y >= self.bounds.h - 1:
+                    return
+
+                self.clear_cursor()
+                self.cursor_y = self.bounds.h - 1
 
         self.update_selection()
         self.draw_cursor()
@@ -782,11 +783,26 @@ class HexWindow(textmode.Window):
         '''update selection start/end'''
 
         if self.mode & HexWindow.MODE_SELECT:
+            old_addr = self.old_addr + self.old_y * 16 + self.old_x
             addr = self.address + self.cursor_y * 16 + self.cursor_x
-            if addr < self.selection_start:
-                self.selection_start = addr
+
+            if self.selection_start == self.selection_end:
+                if addr < self.selection_start:
+                    self.selection_start = addr
+                elif addr > self.selection_end:
+                    self.selection_end = addr
             else:
-                self.selection_end = addr
+                if old_addr == self.selection_start:
+                    self.selection_start = addr
+                elif old_addr == self.selection_end:
+                    self.selection_end = addr
+
+            if self.selection_start > self.selection_end:
+                # swap start, end
+                # and PEP-8 looks amazingly stupid here
+                (self.selection_start,
+                 self.selection_end) = (self.selection_end,
+                                        self.selection_start)
 
             self.draw()
 
@@ -797,6 +813,10 @@ class HexWindow(textmode.Window):
 
         self.gain_focus()
         while True:
+            self.old_addr = self.address
+            self.old_x = self.cursor_x
+            self.old_y = self.cursor_y
+
             key = getch()
 
             if key == KEY_ESC:
