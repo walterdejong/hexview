@@ -697,6 +697,11 @@ class Video(object):
                 self.curses_putch(x + i, y + j, ch, attr)
             offset += self.w - buf.w
 
+    def clear_screen(self):
+        '''clear the screen'''
+
+        self.fillrect(0, 0, self.w, self.h, video_color(WHITE, BLACK))
+
 
 
 class ColorSet(object):
@@ -2425,6 +2430,19 @@ def terminate():
     sys.stderr.flush()
 
 
+def redraw_screen():
+    '''redraw the entire screen'''
+
+    VIDEO.clear_screen()
+
+    for win in STACK.stack:
+        win.draw()
+        win.draw_cursor()
+
+    STDSCR.refresh()
+    curses.doupdate()
+
+
 def getch():
     '''get keyboard input
     Returns key as a string value
@@ -2434,13 +2452,22 @@ def getch():
 #    curses.panel.update_panels()
     curses.doupdate()
 
-    key = STDSCR.getch()
+    while True:
+        key = STDSCR.getch()
 
-    ## DEBUG
-    if key == 17:
-        # Ctrl-Q is hardwired to bail out
-        terminate()
-        sys.exit(0)
+        ## DEBUG
+        if key == 17:
+            # Ctrl-Q is hardwired to bail out
+            terminate()
+            sys.exit(0)
+
+        elif key == 18:
+            # Ctrl-R redraws the screen
+            redraw_screen()
+
+        else:
+            # got a user key
+            break
 
     # TODO if key == KEY_RESIZE: resize_event() for all windows
 
