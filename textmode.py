@@ -2098,6 +2098,8 @@ class MenuBar(Window):
 class TextField(Widget):
     '''single line of text input'''
 
+    MAX_HISTORY = 50
+
     def __init__(self, parent, x, y, w, colors):
         '''initialize'''
 
@@ -2106,6 +2108,8 @@ class TextField(Widget):
         self.w = w
         self.text = ''
         self.cursor = 0
+        self.history = []
+        self.history_cursor = 0
 
     def draw(self):
         '''draw the TextField'''
@@ -2133,8 +2137,71 @@ class TextField(Widget):
 
         VIDEO.hline(self.x, self.y, self.w, ' ', self.colors.text)
 
+    def add_history(self):
+        '''add entered text to history'''
+
+        if not self.text:
+            return
+
+        try:
+            idx = self.history.index(self.text)
+        except ValueError:
+            # not yet in history
+            self.history.append(self.text)
+
+            if len(self.history) > TextField.MAX_HISTORY:
+                # discard oldest entry
+                self.history.pop(0)
+
+        else:
+            # make most recent item
+            self.history.pop(idx)
+            self.history.append(self.text)
+
+        self.history_cursor = 0
+
+    def recall_up(self):
+        '''go back in history'''
+
+        if not self.history:
+            return
+
+        self.history_cursor -= 1
+        if self.history_cursor < 0:
+            self.history_cursor = len(self.history) - 1
+
+        self.text = self.history[self.history_cursor]
+        self.cursor = len(self.text)
+
+        self.draw()
+        self.draw_cursor()
+
+    def recall_down(self):
+        '''go forward in history'''
+
+        if self.history_cursor >= len(self.history) or not self.history:
+            return
+
+        if self.history_cursor < len(self.history):
+            self.history_cursor += 1
+
+        if self.history_cursor < len(self.history):
+            self.text = self.history[self.history_cursor]
+        else:
+            self.text = ''
+
+        self.cursor = len(self.text)
+
+        self.draw()
+        self.draw_cursor()
+
     def runloop(self):
         '''run the TextField'''
+
+        # reset the text
+        self.text = ''
+        self.cursor = 0
+        self.draw()
 
         self.gain_focus()
 
@@ -2159,6 +2226,7 @@ class TextField(Widget):
                 return NEXT
 
             elif key == KEY_RETURN:
+                self.add_history()
                 self.lose_focus()
                 self.clear()
                 return ENTER
@@ -2195,6 +2263,12 @@ class TextField(Widget):
                 if self.cursor != len(self.text):
                     self.cursor = len(self.text)
                     self.draw()
+
+            elif key == KEY_UP:
+                self.recall_up()
+
+            elif key == KEY_DOWN:
+                self.recall_down()
 
             elif len(key) == 1 and len(self.text) < self.w:
                 val = ord(key)
