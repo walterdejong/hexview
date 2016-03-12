@@ -44,6 +44,13 @@ class HexWindow(textmode.Window):
         self.selection_start = self.selection_end = 0
         self.old_addr = old_x = self.old_y = 0
 
+        colors = textmode.ColorSet(WHITE, BLACK)
+        colors.cursor = textmode.video_color(WHITE, GREEN, bold=True)
+        self.cmdline = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
+                                        prompt=':')
+        self.search = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
+                                       prompt='/')
+
     def load(self, filename):
         '''load file
         Raises IOError on error
@@ -864,31 +871,22 @@ class HexWindow(textmode.Window):
 
             elif key == ':':
                 # command mode
-                # FIXME clean this up
-                colors = textmode.ColorSet(WHITE, BLACK)
-                colors.cursor = textmode.video_color(WHITE, GREEN, bold=True)
-                cmdline = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
-                                           prompt=':')
-                cmdline.show()
-                ret = cmdline.runloop()
+                self.cmdline.show()
+                ret = self.cmdline.runloop()
                 if ret == textmode.RETURN_TO_PREVIOUS:
                     continue
 
-                if cmdline.textfield.text in ('q', 'q!', 'quit'):
+                if self.cmdline.textfield.text in ('q', 'q!', 'quit'):
                     return textmode.QUIT
 
-                if cmdline.textfield.text in ('wq', 'wq!', 'ZZ', 'exit'):
+                if self.cmdline.textfield.text in ('wq', 'wq!', 'ZZ', 'exit'):
                     return textmode.EXIT
 
             elif key == '?':
                 # find backwards
-                # FIXME clean this up
-                colors = textmode.ColorSet(WHITE, BLACK)
-                colors.cursor = textmode.video_color(WHITE, GREEN, bold=True)
-                cmdline = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
-                                           prompt='?')
-                cmdline.show()
-                ret = cmdline.runloop()
+                self.search.prompt = '?'
+                self.search.show()
+                ret = self.search.runloop()
                 if ret == textmode.RETURN_TO_PREVIOUS:
                     continue
 
@@ -896,13 +894,9 @@ class HexWindow(textmode.Window):
 
             elif key == '/':
                 # find
-                # FIXME clean this up
-                colors = textmode.ColorSet(WHITE, BLACK)
-                colors.cursor = textmode.video_color(WHITE, GREEN, bold=True)
-                cmdline = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
-                                           prompt='/')
-                cmdline.show()
-                ret = cmdline.runloop()
+                self.search.prompt = '/'
+                self.search.show()
+                ret = self.search.runloop()
                 if ret == textmode.RETURN_TO_PREVIOUS:
                     continue
 
