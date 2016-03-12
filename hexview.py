@@ -867,16 +867,17 @@ class HexWindow(textmode.Window):
                 # FIXME clean this up
                 colors = textmode.ColorSet(WHITE, BLACK)
                 colors.cursor = textmode.video_color(WHITE, GREEN, bold=True)
-                textfield = textmode.TextField(self, 1, VIDEO.h - 1,
-                                               VIDEO.w - 1, colors)
-                VIDEO.putch(0, VIDEO.h - 1, ':', colors.text)
-                textfield.draw()
-                textfield.runloop()
-                VIDEO.putch(0, VIDEO.h - 1, ' ', colors.text)
-                if textfield.text == 'q' or textfield.text == 'q!':
+                cmdline = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
+                                           prompt=':')
+                cmdline.show()
+                ret = cmdline.runloop()
+                if ret == textmode.RETURN_TO_PREVIOUS:
+                    continue
+
+                if cmdline.textfield.text in ('q', 'q!', 'quit'):
                     return textmode.QUIT
 
-                if textfield.text in ('wq', 'wq!', 'ZZ'):
+                if cmdline.textfield.text in ('wq', 'wq!', 'ZZ', 'exit'):
                     return textmode.EXIT
 
             elif key == '?':
@@ -884,12 +885,13 @@ class HexWindow(textmode.Window):
                 # FIXME clean this up
                 colors = textmode.ColorSet(WHITE, BLACK)
                 colors.cursor = textmode.video_color(WHITE, GREEN, bold=True)
-                textfield = textmode.TextField(self, 1, VIDEO.h - 1,
-                                               VIDEO.w - 1, colors)
-                VIDEO.putch(0, VIDEO.h - 1, '?', colors.text)
-                textfield.draw()
-                textfield.runloop()
-                VIDEO.putch(0, VIDEO.h - 1, ' ', colors.text)
+                cmdline = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
+                                           prompt='?')
+                cmdline.show()
+                ret = cmdline.runloop()
+                if ret == textmode.RETURN_TO_PREVIOUS:
+                    continue
+
                 # TODO implement backward search
 
             elif key == '/':
@@ -897,12 +899,13 @@ class HexWindow(textmode.Window):
                 # FIXME clean this up
                 colors = textmode.ColorSet(WHITE, BLACK)
                 colors.cursor = textmode.video_color(WHITE, GREEN, bold=True)
-                textfield = textmode.TextField(self, 1, VIDEO.h - 1,
-                                               VIDEO.w - 1, colors)
-                VIDEO.putch(0, VIDEO.h - 1, '/', colors.text)
-                textfield.draw()
-                textfield.runloop()
-                VIDEO.putch(0, VIDEO.h - 1, ' ', colors.text)
+                cmdline = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
+                                           prompt='/')
+                cmdline.show()
+                ret = cmdline.runloop()
+                if ret == textmode.RETURN_TO_PREVIOUS:
+                    continue
+
                 # TODO implement forward search
 
             elif key == 'n' or key == 'Ctrl-G':
