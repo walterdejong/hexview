@@ -2436,6 +2436,9 @@ def redraw_screen():
     VIDEO.clear_screen()
 
     for win in STACK.stack:
+        if not win.flags & Window.SHOWN:
+            continue
+
         win.draw()
         win.draw_cursor()
 
