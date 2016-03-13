@@ -2121,7 +2121,8 @@ class TextField(Widget):
 
     MAX_HISTORY = 50
 
-    def __init__(self, parent, x, y, w, colors):
+    def __init__(self, parent, x, y, w, colors, history=True,
+                 inputfilter=None):
         '''initialize'''
 
         super(TextField, self).__init__(parent, x, y, colors)
@@ -2129,8 +2130,12 @@ class TextField(Widget):
         self.w = w
         self.text = ''
         self.cursor = 0
-        self.history = []
-        self.history_cursor = 0
+        if history:
+            self.history = []
+            self.history_cursor = 0
+        else:
+            self.history = None
+        self.inputfilter = inputfilter
 
     def draw(self):
         '''draw the TextField'''
@@ -2161,7 +2166,7 @@ class TextField(Widget):
     def add_history(self):
         '''add entered text to history'''
 
-        if not self.text:
+        if self.history is None or not self.text:
             return
 
         try:
@@ -2184,7 +2189,7 @@ class TextField(Widget):
     def recall_up(self):
         '''go back in history'''
 
-        if not self.history:
+        if self.history is None or not self.history:
             return
 
         self.history_cursor -= 1
@@ -2200,7 +2205,9 @@ class TextField(Widget):
     def recall_down(self):
         '''go forward in history'''
 
-        if self.history_cursor >= len(self.history) or not self.history:
+        if (self.history is None or
+                self.history_cursor >= len(self.history) or
+                not self.history):
             return
 
         if self.history_cursor < len(self.history):
@@ -2292,12 +2299,28 @@ class TextField(Widget):
                 self.recall_down()
 
             elif len(key) == 1 and len(self.text) < self.w:
-                val = ord(key)
-                if val >= ord(' ') and val <= ord('~'):
-                    self.text = (self.text[:self.cursor] + key +
+                if self.inputfilter is not None:
+                    ch = self.inputfilter(key)
+                else:
+                    ch = self.default_inputfilter(key)
+
+                if ch is not None:
+                    self.text = (self.text[:self.cursor] + ch +
                                  self.text[self.cursor:])
                     self.cursor += 1
                     self.draw()
+
+    def default_inputfilter(self, key):
+        '''Returns key if valid input
+        or None if invalid
+        '''
+
+        val = ord(key)
+        if val >= ord(' ') and val <= ord('~'):
+            return key
+        else:
+            return None
+
 
 
 class CmdLine(Window):
