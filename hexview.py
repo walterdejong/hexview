@@ -61,6 +61,9 @@ class HexWindow(textmode.Window):
         self.hexsearch = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
                                           prompt='x/')
         self.hexsearch.textfield.inputfilter = hex_inputfilter
+        self.jumpaddr = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
+                                         prompt='@')
+        self.jumpaddr.textfield.inputfilter = hex_inputfilter
 
         # this is a hack; I always want a visible cursor
         # except when a new window is opened (like for Help)
@@ -1049,6 +1052,36 @@ class HexWindow(textmode.Window):
         self.cursor_x = diff % 16
         self.draw_cursor()
 
+    def jump_address(self):
+        '''jump to address'''
+
+        self.jumpaddr.show()
+        ret = self.jumpaddr.runloop()
+        if ret != textmode.ENTER:
+            return
+
+        text = self.jumpaddr.textfield.text
+        text = text.replace(' ', '')
+        if not text:
+            return
+
+        try:
+            addr = int(text, 16)
+        except ValueError:
+            self.search_error('Invalid address')
+            return
+
+        pagesize = self.bounds.h * 16
+        if addr > len(self.data) - pagesize:
+            addr = len(self.data) - pagesize
+        if addr < 0:
+            addr = 0
+
+        if addr != self.address:
+            self.address = addr
+            self.draw()
+            self.draw_cursor()
+
     def move_begin_line(self):
         '''goto beginning of line'''
 
@@ -1256,6 +1289,9 @@ Walter de Jong <walter@heiho.net>''' % ('-' * len(VERSION), VERSION)
             elif key == 'L':
                 self.move_bottom()
 
+            elif key == '@':
+                self.jump_address()
+
 
 
 def bytearray_find_backwards(data, search, pos=-1):
@@ -1319,6 +1355,7 @@ class HelpWindow(textmode.TextWindow):
 
 Command keys
  :                    Enter command mode
+ @                    Jump to address
  /        Ctrl-F      Find
  ?                    Find backwards
  n        Ctrl-G      Find again
