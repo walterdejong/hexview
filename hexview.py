@@ -1195,7 +1195,7 @@ class HexWindow(textmode.Window):
         '''show About box'''
 
         text = '''HexView
---------%s
+------%s
 version %s
 
 Copyright 2016 by
@@ -1209,10 +1209,16 @@ Walter de Jong <walter@heiho.net>''' % ('-' * len(VERSION), VERSION)
         colors.activebuttonhotkey = textmode.video_color(YELLOW, GREEN,
                                                          bold=True)
 
-        win = textmode.Alert(colors, 'About', text, ['<O>K',])
+        win = textmode.Alert(colors, 'About', text)
         # enable cursor-focus-hack
         self.really_lose_focus = True
         win.show()
+
+        # hack; make a goodlooking hline
+        w = len(VERSION) + 8
+        x = win.bounds.x + textmode.center_x(w, win.bounds.w)
+        VIDEO.hline(x, win.frame.y + 3, w, curses.ACS_HLINE, colors.text)
+
         self.really_lose_focus = False
         win.runloop()
         win.close()
