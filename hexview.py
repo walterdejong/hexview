@@ -1379,12 +1379,6 @@ Command keys
             elif key == KEY_DOWN or key == 'j':
                 self.move_down()
 
-            elif key == KEY_LEFT or key == 'h':
-                self.move_left()
-
-            elif key == KEY_RIGHT or key == 'l':
-                self.move_right()
-
             elif key == KEY_PAGEUP or key == 'Ctrl-U':
                 self.pageup()
 
