@@ -1599,7 +1599,7 @@ class Alert(Window):
         # draw the text
         y = 1
         for line in self.text:
-            x = (self.bounds.w - len(line)) / 2
+            x = center_x(len(line), self.bounds.w)
             self.cputs(x, y, line)
             y += 1
 
