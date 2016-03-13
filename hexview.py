@@ -982,6 +982,38 @@ class HexWindow(textmode.Window):
             self.cursor_y = self.bounds.h - 1
             self.draw_cursor()
 
+    def command(self):
+        '''command mode
+        Returns 0 (do nothing) or app code
+        '''
+
+        self.cmdline.show()
+        ret = self.cmdline.runloop()
+        if ret == textmode.RETURN_TO_PREVIOUS:
+            return ret
+
+        cmd = self.cmdline.textfield.text
+        if not cmd:
+            return 0
+
+        elif cmd in ('q', 'q!', 'quit'):
+            return textmode.QUIT
+
+        elif cmd in ('wq', 'wq!', 'ZZ', 'exit'):
+            return textmode.EXIT
+
+        elif cmd == '0':
+            self.move_home()
+
+        else:
+            self.cmdline.show()
+            self.cmdline.cputs(0, 0, "Unknown command '%s'" % cmd,
+                              textmode.video_color(WHITE, RED, bold=True))
+            getch()
+            self.cmdline.hide()
+
+        return 0
+
     def runloop(self):
         '''run the input loop
         Returns state change code
@@ -1037,16 +1069,9 @@ class HexWindow(textmode.Window):
 
             elif key == ':':
                 # command mode
-                self.cmdline.show()
-                ret = self.cmdline.runloop()
-                if ret == textmode.RETURN_TO_PREVIOUS:
-                    continue
-
-                if self.cmdline.textfield.text in ('q', 'q!', 'quit'):
-                    return textmode.QUIT
-
-                if self.cmdline.textfield.text in ('wq', 'wq!', 'ZZ', 'exit'):
-                    return textmode.EXIT
+                ret = self.command()
+                if ret != 0:
+                    return ret
 
             elif key == '?':
                 # find backwards
