@@ -452,10 +452,8 @@ class HexWindow(textmode.Window):
         '''draw cursor'''
 
         if clear or self.really_lose_focus:
-            debug('self.draw_cursor(clear)')
             color = self.colors.text
         else:
-            debug('self.draw_cursor()')
             color = self.colors.cursor
 
         y = self.cursor_y
