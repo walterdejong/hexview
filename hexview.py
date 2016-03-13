@@ -17,6 +17,9 @@ from textmode import VIDEO
 from textmode import debug
 
 
+VERSION = '0.9-beta'
+
+
 class HexWindow(textmode.Window):
     '''hex viewer main window'''
 
@@ -1104,6 +1107,9 @@ class HexWindow(textmode.Window):
         elif cmd == 'help' or cmd == '?':
             self.show_help()
 
+        elif cmd == 'about':
+            self.show_about()
+
         elif cmd in ('q', 'q!', 'quit'):
             return textmode.QUIT
 
@@ -1129,8 +1135,34 @@ class HexWindow(textmode.Window):
         # enable cursor-focus-hack
         self.really_lose_focus = True
         win.show()
-        win.runloop()
         self.really_lose_focus = False
+        win.runloop()
+        win.close()
+
+    def show_about(self):
+        '''show About box'''
+
+        text = '''HexView
+--------%s
+version %s
+
+Copyright 2016 by
+Walter de Jong <walter@heiho.net>''' % ('-' * len(VERSION), VERSION)
+
+        colors = textmode.ColorSet(BLACK, WHITE)
+        colors.title = textmode.video_color(RED, WHITE)
+        colors.button = textmode.video_color(WHITE, BLUE, bold=True)
+        colors.buttonhotkey = textmode.video_color(YELLOW, BLUE, bold=True)
+        colors.activebutton = textmode.video_color(WHITE, GREEN, bold=True)
+        colors.activebuttonhotkey = textmode.video_color(YELLOW, GREEN,
+                                                         bold=True)
+
+        win = textmode.Alert(colors, 'About', text, ['<O>K',])
+        # enable cursor-focus-hack
+        self.really_lose_focus = True
+        win.show()
+        self.really_lose_focus = False
+        win.runloop()
         win.close()
 
     def runloop(self):
@@ -1280,6 +1312,7 @@ class HelpWindow(textmode.TextWindow):
 
         text = '''Commands
  :help    :?          Show this information
+ :about               Show About box
  :q       :q!         Quit
 
  :0                   Go to top
