@@ -716,8 +716,8 @@ class HexWindow(textmode.Window):
         self.update_selection()
         self.draw_cursor()
 
-    def goto_top(self):
-        '''go to top'''
+    def move_home(self):
+        '''go to top of document'''
 
         if not self.address:
             if not self.cursor_x and not self.cursor_y:
@@ -732,8 +732,8 @@ class HexWindow(textmode.Window):
         self.update_selection()
         self.draw_cursor()
 
-    def goto_bottom(self):
-        '''go to last page'''
+    def move_end(self):
+        '''go to last page of document'''
 
         pagesize = self.bounds.h * 16
         top = len(self.data) - pagesize
@@ -957,6 +957,31 @@ class HexWindow(textmode.Window):
         self.cursor_x = diff % 16
         self.draw_cursor()
 
+    def move_top(self):
+        '''goto top of screen'''
+
+        if self.cursor_y != 0:
+            self.clear_cursor()
+            self.cursor_y = 0
+            self.draw_cursor()
+
+    def move_middle(self):
+        '''goto middle of screen'''
+
+        y = self.bounds.h / 2
+        if self.cursor_y != y:
+            self.clear_cursor()
+            self.cursor_y = y
+            self.draw_cursor()
+    
+    def move_bottom(self):
+        '''goto bottom of screen'''
+
+        if self.cursor_y != self.bounds.h - 1:
+            self.clear_cursor()
+            self.cursor_y = self.bounds.h - 1
+            self.draw_cursor()
+
     def runloop(self):
         '''run the input loop
         Returns state change code
@@ -999,10 +1024,10 @@ class HexWindow(textmode.Window):
                 self.pagedown()
 
             elif key == KEY_HOME or key == 'g':
-                self.goto_top()
+                self.move_home()
 
             elif key == KEY_END or key == 'G':
-                self.goto_bottom()
+                self.move_end()
 
             elif key in ('1', '2', '3', '4', '5'):
                 self.select_view(key)
@@ -1036,6 +1061,21 @@ class HexWindow(textmode.Window):
                     self.find(again=True)
                 elif self.searchdir == HexWindow.BACKWARD:
                     self.find_backwards(again=True)
+
+            elif key == '0' or key == '^':
+                self.move_begin_line()
+
+            elif key == '$':
+                self.move_end_line()
+
+            elif key == 'H':
+                self.move_top()
+
+            elif key == 'M':
+                self.move_middle()
+
+            elif key == 'L':
+                self.move_bottom()
 
 
 
