@@ -1073,7 +1073,9 @@ Command keys
  hjkl     arrows      Move cursor
 
  Ctrl-R               Redraw screen
- Ctrl-Q               Force quit'''
+ Ctrl-Q               Force quit
+ 
+ Press Escape to close this window'''
 
         colors = textmode.ColorSet(BLACK, WHITE)
         colors.title = textmode.video_color(RED, WHITE)
@@ -1087,8 +1089,10 @@ Command keys
         x = textmode.center_x(w, self.frame.w)
         y = textmode.center_y(h, self.frame.h)
 
-        win = textmode.TextWindow(x, y, w, h, colors, 'Help',
-                                  True, text.split('\n'))
+        win = textmode.TextWindow(x, y, w, h, colors, title='Help',
+                                  border=True, text=text.split('\n'),
+                                  scrollbar=False, status=False)
+        win.update_scrollbar()
         # enable cursor-focus-hack
         self.really_lose_focus = True
         win.show()

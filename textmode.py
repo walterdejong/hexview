@@ -989,7 +989,7 @@ class TextWindow(Window):
     '''a window for displaying text'''
 
     def __init__(self, x, y, w, h, colors, title=None, border=True,
-                 text=None, tabsize=4):
+                 text=None, tabsize=4, scrollbar=True, status=True):
         '''initialize'''
 
         super(TextWindow, self).__init__(x, y, w, h, colors, title, border)
@@ -1002,9 +1002,19 @@ class TextWindow(Window):
         self.top = 0
         self.cursor = 0
         self.xoffset = 0
-        self.scrollbar_y = 0
-        self.scrollbar_h = 0
-        self.status = ''
+
+        if status:
+            self.status = ''
+        else:
+            self.status = None
+
+        if scrollbar:
+            self.scrollbar = True
+            self.scrollbar_y = 0
+            self.scrollbar_h = 0
+            self.init_scrollbar()
+        else:
+            self.scrollbar = None
 
     def load(self, filename):
         '''load text file
@@ -1018,18 +1028,11 @@ class TextWindow(Window):
         # strip newlines
         self.text = [x.rstrip() for x in self.text]
 
-        # calc scrollbar
-        if self.has_border and len(self.text) > 0:
-            factor = float(self.bounds.h) / len(self.text)
-            self.scrollbar_h = int(factor * self.bounds.h + 0.5)
-            if self.scrollbar_h < 1:
-                self.scrollbar_h = 1
-            if self.scrollbar_h > self.bounds.h:
-                self.scrollbar_h = self.bounds.h
-#            self.update_scrollbar()
-
         if self.title is not None:
             self.title = os.path.basename(filename)
+
+        if self.scrollbar is not None:
+            self.init_scrollbar()
 
         # do a full draw because we loaded new text
         self.draw()
@@ -1089,11 +1092,23 @@ class TextWindow(Window):
         line = line[self.xoffset:]
         self.cputs(0, y, line, color)
 
+    def init_scrollbar(self):
+        '''initalize scrollbar'''
+
+        if self.has_border and len(self.text) > 0:
+            factor = float(self.bounds.h) / len(self.text)
+            self.scrollbar_h = int(factor * self.bounds.h + 0.5)
+            if self.scrollbar_h < 1:
+                self.scrollbar_h = 1
+            if self.scrollbar_h > self.bounds.h:
+                self.scrollbar_h = self.bounds.h
+#            self.update_scrollbar()
+
     def update_scrollbar(self):
         '''update scrollbar position'''
 
-        if (not self.has_border or self.scrollbar_h <= 0 or
-                not self.text):
+        if (self.scrollbar is None or not self.has_border or
+                self.scrollbar_h <= 0 or not self.text):
             return
 
         old_y = self.scrollbar_y
@@ -1108,7 +1123,8 @@ class TextWindow(Window):
     def clear_scrollbar(self):
         '''erase scrollbar'''
 
-        if not self.has_border or self.scrollbar_h <= 0:
+        if (self.scrollbar is None or not self.has_border or
+                self.scrollbar_h <= 0):
             return
 
         y = self.scrollbar_y - self.scrollbar_h / 2
@@ -1123,7 +1139,8 @@ class TextWindow(Window):
     def draw_scrollbar(self):
         '''draw scrollbar'''
 
-        if not self.has_border or self.scrollbar_h <= 0:
+        if (self.scrollbar is None or not self.has_border or
+                self.scrollbar_h <= 0):
             return
 
         y = self.scrollbar_y - self.scrollbar_h / 2
@@ -1139,7 +1156,7 @@ class TextWindow(Window):
     def update_statusbar(self, msg):
         '''update the statusbar'''
 
-        if msg == self.status:
+        if self.status is None or msg == self.status:
             return
 
         if len(msg) < len(self.status):
@@ -1157,6 +1174,9 @@ class TextWindow(Window):
 
     def draw_statusbar(self):
         '''draw statusbar'''
+
+        if self.status is None:
+            return
 
         x = self.bounds.w - 1 - len(self.status)
         if x < 0:
