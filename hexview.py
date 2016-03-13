@@ -56,6 +56,10 @@ class HexWindow(textmode.Window):
                                        prompt='/')
         self.searchdir = HexWindow.FORWARD
 
+        # this is a hack; I always want a visible cursor
+        # except when a new window is opened (like for Help)
+        self.really_lose_focus = False
+
     def load(self, filename):
         '''load file
         Raises IOError on error
@@ -444,9 +448,11 @@ class HexWindow(textmode.Window):
     def draw_cursor(self, clear=False):
         '''draw cursor'''
 
-        if clear:
+        if clear or self.really_lose_focus:
+            debug('self.draw_cursor(clear)')
             color = self.colors.text
         else:
+            debug('self.draw_cursor()')
             color = self.colors.cursor
 
         y = self.cursor_y
@@ -477,7 +483,7 @@ class HexWindow(textmode.Window):
     def draw_ascii_cursor(self, ch, color, clear):
         '''draw ascii cursor'''
 
-        if clear:
+        if clear or self.really_lose_focus:
             color = self.colors.text
         else:
             color = self.colors.cursor
@@ -1083,8 +1089,11 @@ Command keys
 
         win = textmode.TextWindow(x, y, w, h, colors, 'Help',
                                   True, text.split('\n'))
+        # enable cursor-focus-hack
+        self.really_lose_focus = True
         win.show()
         win.runloop()
+        self.really_lose_focus = False
         win.close()
 
     def runloop(self):
