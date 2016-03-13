@@ -999,16 +999,16 @@ class HexWindow(textmode.Window):
                 if self.mode & HexWindow.MODE_SELECT:
                     self.mode_selection()
 
-            elif key == KEY_UP:
+            elif key == KEY_UP or key == 'k':
                 self.move_up()
 
-            elif key == KEY_DOWN:
+            elif key == KEY_DOWN or key == 'j':
                 self.move_down()
 
-            elif key == KEY_LEFT:
+            elif key == KEY_LEFT or key == 'h':
                 self.move_left()
 
-            elif key == KEY_RIGHT:
+            elif key == KEY_RIGHT or key == 'l':
                 self.move_right()
 
             elif key == '<' or key == ',':
