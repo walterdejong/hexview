@@ -998,10 +998,10 @@ class HexWindow(textmode.Window):
             elif key == KEY_PAGEDOWN:
                 self.pagedown()
 
-            elif key == KEY_HOME:
+            elif key == KEY_HOME or key == 'g':
                 self.goto_top()
 
-            elif key == KEY_END:
+            elif key == KEY_END or key == 'G':
                 self.goto_bottom()
 
             elif key in ('1', '2', '3', '4', '5'):
@@ -1075,7 +1075,7 @@ def hexview_main():
     colors.status = colors.cursor
     colors.invisibles = textmode.video_color(BLUE, CYAN, bold=True)
 
-    view = HexWindow(0, 1, 80, 24, colors)
+    view = HexWindow(0, 0, 80, VIDEO.h - 1, colors)
     view.load(sys.argv[1])
     view.show()
     view.runloop()
