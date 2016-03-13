@@ -55,6 +55,9 @@ class HexWindow(textmode.Window):
         self.search = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
                                        prompt='/')
         self.searchdir = HexWindow.FORWARD
+        self.hexsearch = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
+                                          prompt='x/')
+        self.hexsearch.textfield.inputfilter = hex_inputfilter
 
         # this is a hack; I always want a visible cursor
         # except when a new window is opened (like for Help)
@@ -834,6 +837,15 @@ class HexWindow(textmode.Window):
 
             self.draw()
 
+    def search_error(self, msg):
+        '''display error message for search functions'''
+
+        self.search.show()
+        self.search.cputs(0, 0, msg, textmode.video_color(WHITE, RED,
+                                                          bold=True))
+        getch()
+        self.search.hide()
+
     def find(self, again=False):
         '''text search'''
 
@@ -871,11 +883,7 @@ class HexWindow(textmode.Window):
             offset = -1
 
         if offset == -1:
-            self.search.show()
-            self.search.cputs(0, 0, 'Not found',
-                              textmode.video_color(WHITE, RED, bold=True))
-            getch()
-            self.search.hide()
+            self.search_error('Not found')
             return
 
         # text was found at offset
@@ -934,11 +942,88 @@ class HexWindow(textmode.Window):
             offset = -1
 
         if offset == -1:
-            self.search.show()
-            self.search.cputs(0, 0, 'Not found',
-                              textmode.video_color(WHITE, RED, bold=True))
-            getch()
-            self.search.hide()
+            self.search_error('Not found')
+            return
+
+        # text was found at offset
+        self.clear_cursor()
+        # if on the same page, move the cursor
+        pagesize = self.bounds.h * 16
+        if self.address < offset + len(searchtext) < self.address + pagesize:
+            pass
+        else:
+            # scroll the page; change base address
+            self.address = offset - self.bounds.h * 8
+            if self.address > len(self.data) - pagesize:
+                self.address = len(self.data) - pagesize
+            if self.address < 0:
+                self.address = 0
+
+            self.draw()
+
+        # move cursor location
+        diff = offset - self.address
+        self.cursor_y = diff / 16
+        self.cursor_x = diff % 16
+        self.draw_cursor()
+
+    def find_hex(self, again=False):
+        '''search hex string'''
+
+        self.searchdir = HexWindow.FORWARD
+        searchtext = ''
+
+        if not again:
+            self.hexsearch.show()
+            ret = self.hexsearch.runloop()
+            if ret != textmode.ENTER:
+                return
+
+            searchtext = self.hexsearch.textfield.text
+            if not searchtext:
+                again = True
+
+        if again:
+            try:
+                searchtext = self.hexsearch.textfield.history[-1]
+            except IndexError:
+                return
+
+        if not searchtext:
+            return
+
+        # convert ascii searchtext to raw byte string
+        searchtext = searchtext.replace(' ', '')
+        if not searchtext:
+            return
+
+        if len(searchtext) & 1:
+            self.search_error('Invalid byte string (uneven number of digits)')
+            return
+
+        raw = ''
+        for x in xrange(0, len(searchtext), 2):
+            hex_string = searchtext[x:x + 2]
+            try:
+                value = int(hex_string, 16)
+            except ValueError:
+                self.search_error('Invalid value in byte string')
+                return
+
+            raw += chr(value)
+
+        pos = self.address + self.cursor_y * 16 + self.cursor_x
+        if again:
+            pos += 1
+
+        try:
+            offset = self.data.find(raw, pos)
+        except ValueError:
+            # not found
+            offset = -1
+
+        if offset == -1:
+            self.search_error('Not found')
             return
 
         # text was found at offset
@@ -1123,6 +1208,9 @@ class HexWindow(textmode.Window):
                 elif self.searchdir == HexWindow.BACKWARD:
                     self.find_backwards(again=True)
 
+            elif key == 'x' or key == 'Ctrl-X':
+                self.find_hex()
+
             elif key == '0' or key == '^':
                 self.move_begin_line()
 
@@ -1168,6 +1256,23 @@ def bytearray_find_backwards(data, search, pos=-1):
     return -1
 
 
+def hex_inputfilter(key):
+    '''hexadecimal input filter
+    Returns character or None if invalid
+    '''
+
+    val = ord(key)
+    if (val >= ord('0') and val <= ord('9') or
+            val >= ord('a') and val <= ord('f') or
+            val >= ord('A') and val <= ord('F') or
+            val == ord(' ')):
+        if val >= ord('a') and val <= ord('f'):
+            key = key.upper()
+        return key
+    else:
+        return None
+
+
 
 class HelpWindow(textmode.TextWindow):
     '''displays usage information'''
@@ -1186,6 +1291,7 @@ Command keys
  /        Ctrl-F      Find
  ?                    Find backwards
  n        Ctrl-G      Find again
+ x        Ctrl-X      Find hexadecimal
  v        Ctrl-V      Enter selection mode
  1                    View single bytes
  2                    View 16-bit words
