@@ -1012,6 +1012,9 @@ class HexWindow(textmode.Window):
         if not cmd:
             return 0
 
+        elif cmd == 'help' or cmd == '?':
+            self.show_help()
+
         elif cmd in ('q', 'q!', 'quit'):
             return textmode.QUIT
 
@@ -1029,6 +1032,60 @@ class HexWindow(textmode.Window):
             self.cmdline.hide()
 
         return 0
+
+    def show_help(self):
+        '''show help window'''
+
+        text = '''Commands
+ :help    :?          Show this information
+ :q       :q!         Quit
+
+ :0                   Go to top
+
+Command keys
+ :                    Enter command mode
+ /        Ctrl-F      Find
+ ?                    Find backwards
+ n        Ctrl-G      Find again
+ v        Ctrl-V      Enter selection mode
+ 1                    View single bytes
+ 2                    View 16-bit words
+ 3                    View 16-bit words, swapped
+ 4                    View 32-bit words
+ 5                    View 32-bit words, swapped
+ <                    Roll left
+ >                    Roll right
+ g        Home        Go to top
+ G        End         Go to end
+ ^        0           Go to start of line
+ $                    Go to end of line
+ H                    Go to top of screen
+ M                    Go to middle of screen
+ L                    Go to bottom of screen
+ Ctrl-U   PageUp      Go one page up
+ Ctrl-V   PageDown    Go one page down
+ hjkl     arrows      Move cursor
+
+ Ctrl-R               Redraw screen
+ Ctrl-Q               Force quit'''
+
+        colors = textmode.ColorSet(BLACK, WHITE)
+        colors.title = textmode.video_color(RED, WHITE)
+        colors.status = textmode.video_color(BLACK, WHITE, bold=True)
+        colors.cursor = textmode.video_color(BLACK, GREEN)
+
+        w = 52
+        h = VIDEO.h - 7
+        if h < 4:
+            h = 4
+        x = textmode.center_x(w, self.frame.w)
+        y = textmode.center_y(h, self.frame.h)
+
+        win = textmode.TextWindow(x, y, w, h, colors, 'Help',
+                                  True, text.split('\n'))
+        win.show()
+        win.runloop()
+        win.close()
 
     def runloop(self):
         '''run the input loop
@@ -1065,10 +1122,10 @@ class HexWindow(textmode.Window):
             elif key == '>' or key == '.':
                 self.roll_right()
 
-            elif key == KEY_PAGEUP:
+            elif key == KEY_PAGEUP or key == 'Ctrl-U':
                 self.pageup()
 
-            elif key == KEY_PAGEDOWN:
+            elif key == KEY_PAGEDOWN or key == 'Ctrl-V':
                 self.pagedown()
 
             elif key == KEY_HOME or key == 'g':
@@ -1080,7 +1137,7 @@ class HexWindow(textmode.Window):
             elif key in ('1', '2', '3', '4', '5'):
                 self.select_view(key)
 
-            elif key in ('v', 'V', 'Ctrl-V'):
+            elif key == 'v':
                 self.mode_selection()
 
             elif key == ':':
@@ -1159,6 +1216,10 @@ def hexview_main():
     view = HexWindow(0, 0, 80, VIDEO.h - 1, colors)
     view.load(sys.argv[1])
     view.show()
+
+    VIDEO.puts(0, VIDEO.h - 1, 'Enter :help for usage information',
+               textmode.video_color(WHITE, BLACK))
+
     view.runloop()
 
 
