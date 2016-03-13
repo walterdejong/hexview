@@ -957,6 +957,22 @@ class HexWindow(textmode.Window):
         self.cursor_x = diff % 16
         self.draw_cursor()
 
+    def move_begin_line(self):
+        '''goto beginning of line'''
+
+        if self.cursor_x != 0:
+            self.clear_cursor()
+            self.cursor_x = 0
+            self.draw_cursor()
+
+    def move_end_line(self):
+        '''goto end of line'''
+
+        if self.cursor_x != 15:
+            self.clear_cursor()
+            self.cursor_x = 15
+            self.draw_cursor()
+
     def move_top(self):
         '''goto top of screen'''
 
