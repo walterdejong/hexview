@@ -1,6 +1,8 @@
 #
 #   textmode.py     WJ116
 #
+#   Copyright 2016 by Walter de Jong <walter@heiho.net>
+#
 
 '''classes and routines for text mode screens'''
 

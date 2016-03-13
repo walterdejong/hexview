@@ -2,6 +2,8 @@
 #
 #   hexview.py  WJ116
 #
+#   Copyright 2016 by Walter de Jong <walter@heiho.net>
+#
 
 '''hex file viewer'''
 
