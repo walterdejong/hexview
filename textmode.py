@@ -735,6 +735,7 @@ class ColorSet(object):
         self.activemenuhotkey = self.text
 
         self.prompt = self.text
+        self.invisibles = self.text
 
 
 

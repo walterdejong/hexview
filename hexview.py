@@ -410,14 +410,16 @@ class HexWindow(textmode.Window):
         x = 60
         offset = self.address + y * 16
         for _ in xrange(0, 16):
+            invis = False
             try:
                 ch = self.data[offset]
                 if ch >= ord(' ') and ch <= ord('~'):
                     ch = chr(ch)
                 else:
-                    # TODO also set other color?
+                    invis = True
                     ch = '.'
             except IndexError:
+                invis = True
                 ch = ' '
 
             if (self.mode & HexWindow.MODE_SELECT and
@@ -425,16 +427,21 @@ class HexWindow(textmode.Window):
                 # draw selection
                 color = self.colors.cursor
             else:
-                color = self.colors.text
+                if invis:
+                    color = self.colors.invisibles
+                else:
+                    color = self.colors.text
 
             self.putch(x, y, ch, color)
             x += 1
             offset += 1
 
-    def draw_cursor(self, color=-1):
+    def draw_cursor(self, clear=False):
         '''draw cursor'''
 
-        if color == -1:
+        if clear:
+            color = self.colors.text
+        else:
             color = self.colors.cursor
 
         y = self.cursor_y
@@ -460,15 +467,22 @@ class HexWindow(textmode.Window):
         elif self.view_option == HexWindow.OPT_32_BIT_SWAP:
             self.draw_cursor_32bit_swap(ch, color)
 
-        self.draw_ascii_cursor(ch, color)
+        self.draw_ascii_cursor(ch, color, clear)
 
-    def draw_ascii_cursor(self, ch, color):
+    def draw_ascii_cursor(self, ch, color, clear):
         '''draw ascii cursor'''
+
+        if clear:
+            color = self.colors.text
+        else:
+            color = self.colors.cursor
 
         if ch >= ord(' ') and ch <= ord('~'):
             ch = chr(ch)
         else:
             ch = '.'
+            if clear:
+                color = self.colors.invisibles
 
         self.putch(60 + self.cursor_x, self.cursor_y, ch, color)
 
@@ -527,7 +541,7 @@ class HexWindow(textmode.Window):
     def clear_cursor(self):
         '''clear the cursor'''
 
-        self.draw_cursor(self.colors.text)
+        self.draw_cursor(clear=True)
 
     def scroll_up(self, nlines=1):
         '''scroll nlines up'''
@@ -915,6 +929,7 @@ def hexview_main():
     colors = textmode.ColorSet(BLACK, CYAN)
     colors.cursor = textmode.video_color(WHITE, BLACK, bold=True)
     colors.status = colors.cursor
+    colors.invisibles = textmode.video_color(BLUE, CYAN, bold=True)
 
     view = HexWindow(0, 1, 80, 24, colors)
     view.load(sys.argv[1])
