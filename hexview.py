@@ -15,6 +15,7 @@ import textmode
 from textmode import WHITE, YELLOW, GREEN, CYAN, BLUE, MAGENTA, RED, BLACK
 from textmode import getch, KEY_ESC, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT
 from textmode import KEY_PAGEUP, KEY_PAGEDOWN, KEY_HOME, KEY_END, KEY_RETURN
+from textmode import KEY_TAB, KEY_BTAB, KEY_BS, KEY_DEL
 from textmode import VIDEO
 from textmode import debug
 
@@ -55,17 +56,13 @@ class HexWindow(textmode.Window):
 
         colors = textmode.ColorSet(WHITE, BLACK)
         colors.cursor = textmode.video_color(WHITE, GREEN, bold=True)
-        self.cmdline = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
-                                        prompt=':')
-        self.search = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
-                                       prompt='/')
+        self.cmdline = CommandBar(0, VIDEO.h - 1, VIDEO.w, colors, prompt=':')
+        self.search = CommandBar(0, VIDEO.h - 1, VIDEO.w, colors, prompt='/')
         self.searchdir = HexWindow.FORWARD
-        self.hexsearch = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
-                                          prompt='x/')
-        self.hexsearch.textfield.inputfilter = hex_inputfilter
-        self.jumpaddr = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
-                                         prompt='@')
-        self.jumpaddr.textfield.inputfilter = hex_inputfilter
+        self.hexsearch = CommandBar(0, VIDEO.h - 1, VIDEO.w, colors,
+                                    prompt='x/', inputfilter=hex_inputfilter)
+        self.jumpaddr = CommandBar(0, VIDEO.h - 1, VIDEO.w, colors,
+                                   prompt='@', inputfilter=hex_inputfilter)
 
         # this is a hack; I always want a visible cursor
         # except when a new window is opened (like for Help)
@@ -1151,8 +1148,8 @@ class HexWindow(textmode.Window):
 
         self.cmdline.show()
         ret = self.cmdline.runloop()
-        if ret == textmode.RETURN_TO_PREVIOUS:
-            return ret
+        if ret != textmode.ENTER:
+            return 0
 
         cmd = self.cmdline.textfield.text
         if not cmd:
@@ -1367,6 +1364,141 @@ def hex_inputfilter(key):
         return key
     else:
         return None
+
+
+
+class CommandBar(textmode.CmdLine):
+    '''command bar
+    Same as CmdLine, but backspace can exit the command mode
+    '''
+
+    def __init__(self, x, y, w, colors, prompt=None, inputfilter=None):
+        '''initialize'''
+
+        super(CommandBar, self).__init__(x, y, w, colors, prompt)
+
+        if self.prompt is not None:
+            x += len(self.prompt)
+            w -= len(self.prompt)
+            if w < 1:
+                w = 1
+
+        self.textfield = CommandField(self, x, self.bounds.y, w, colors,
+                                      True, inputfilter)
+
+
+
+class CommandField(textmode.TextField):
+    '''command bar edit field
+    Same as TextField, but backspace can exit the command mode
+    '''
+
+    def __init__(self, parent, x, y, w, colors, history=True,
+                 inputfilter=None):
+        '''initialize'''
+
+        super(CommandField, self).__init__(parent, x, y, w, colors, history,
+                                           inputfilter)
+
+    def runloop(self):
+        '''run the CommandField
+        Same as TextField, but backspace can exit
+        '''
+
+        # reset the text
+        self.text = ''
+        self.cursor = 0
+        self.draw()
+
+        self.gain_focus()
+
+        while True:
+            key = getch()
+            if key == KEY_ESC:
+                self.text = ''
+                self.cursor = 0
+                self.lose_focus()
+                self.clear()
+                return textmode.RETURN_TO_PREVIOUS
+
+            elif key == KEY_BTAB:
+                self.lose_focus()
+                self.clear()
+                return textmode.BACK
+
+            elif key == KEY_TAB:
+                self.lose_focus()
+                self.clear()
+                return textmode.NEXT
+
+            elif key == KEY_RETURN:
+                self.add_history()
+                self.lose_focus()
+                self.clear()
+                return textmode.ENTER
+
+            elif key == KEY_BS:
+                if self.cursor > 0:
+                    self.text = (self.text[:self.cursor - 1] +
+                                 self.text[self.cursor:])
+                    self.cursor -= 1
+                    self.draw()
+
+                elif self.cursor == 0 and not self.text:
+                    # exit
+                    self.lose_focus()
+                    self.clear()
+                    return textmode.RETURN_TO_PREVIOUS
+
+            elif key == KEY_DEL:
+                if self.cursor < len(self.text):
+                    self.text = (self.text[:self.cursor] +
+                                 self.text[self.cursor + 1:])
+                    self.draw()
+
+                elif self.cursor == 0 and not self.text:
+                    # exit
+                    self.lose_focus()
+                    self.clear()
+                    return textmode.RETURN_TO_PREVIOUS
+
+            elif key == KEY_LEFT:
+                if self.cursor > 0:
+                    self.cursor -= 1
+                    self.draw()
+
+            elif key == KEY_RIGHT:
+                if self.cursor < len(self.text):
+                    self.cursor += 1
+                    self.draw()
+
+            elif key == KEY_HOME:
+                if self.cursor > 0:
+                    self.cursor = 0
+                    self.draw()
+
+            elif key == KEY_END:
+                if self.cursor != len(self.text):
+                    self.cursor = len(self.text)
+                    self.draw()
+
+            elif key == KEY_UP:
+                self.recall_up()
+
+            elif key == KEY_DOWN:
+                self.recall_down()
+
+            elif len(key) == 1 and len(self.text) < self.w:
+                if self.inputfilter is not None:
+                    ch = self.inputfilter(key)
+                else:
+                    ch = self.default_inputfilter(key)
+
+                if ch is not None:
+                    self.text = (self.text[:self.cursor] + ch +
+                                 self.text[self.cursor:])
+                    self.cursor += 1
+                    self.draw()
 
 
 
