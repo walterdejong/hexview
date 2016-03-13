@@ -28,6 +28,10 @@ class HexWindow(textmode.Window):
 
     MODE_SELECT = 1
 
+    # search direction
+    FORWARD = 0
+    BACKWARD = 1
+
     def __init__(self, x, y, w, h, colors, title=None, border=True):
         '''initialize'''
 
@@ -50,6 +54,7 @@ class HexWindow(textmode.Window):
                                         prompt=':')
         self.search = textmode.CmdLine(0, VIDEO.h - 1, VIDEO.w, colors,
                                        prompt='/')
+        self.searchdir = HexWindow.FORWARD
 
     def load(self, filename):
         '''load file
@@ -826,6 +831,7 @@ class HexWindow(textmode.Window):
     def find(self, again=False):
         '''text search'''
 
+        self.searchdir = HexWindow.FORWARD
         searchtext = ''
 
         if not again:
@@ -870,7 +876,70 @@ class HexWindow(textmode.Window):
         self.clear_cursor()
         # if on the same page, move the cursor
         pagesize = self.bounds.h * 16
-        if offset + len(searchtext) < self.address + pagesize:
+        if self.address < offset + len(searchtext) < self.address + pagesize:
+            pass
+        else:
+            # scroll the page; change base address
+            self.address = offset - self.bounds.h * 8
+            if self.address > len(self.data) - pagesize:
+                self.address = len(self.data) - pagesize
+            if self.address < 0:
+                self.address = 0
+
+            self.draw()
+
+        # move cursor location
+        diff = offset - self.address
+        self.cursor_y = diff / 16
+        self.cursor_x = diff % 16
+        self.draw_cursor()
+
+    def find_backwards(self, again=False):
+        '''text search backwards'''
+
+        self.searchdir = HexWindow.BACKWARD
+        searchtext = ''
+
+        if not again:
+            self.search.prompt = '?'
+            self.search.show()
+            ret = self.search.runloop()
+            if ret != textmode.ENTER:
+                return
+
+            searchtext = self.search.textfield.text
+            if not searchtext:
+                again = True
+
+        if again:
+            try:
+                searchtext = self.search.textfield.history[-1]
+            except IndexError:
+                return
+
+        if not searchtext:
+            return
+
+        pos = self.address + self.cursor_y * 16 + self.cursor_x
+        try:
+            offset = bytearray_find_backwards(self.data, searchtext, pos)
+        except ValueError:
+            # not found
+            offset = -1
+
+        if offset == -1:
+            self.search.show()
+            self.search.cputs(0, 0, 'Not found',
+                              textmode.video_color(WHITE, RED, bold=True))
+            getch()
+            self.search.hide()
+            return
+
+        # text was found at offset
+        self.clear_cursor()
+        # if on the same page, move the cursor
+        pagesize = self.bounds.h * 16
+        if self.address < offset + len(searchtext) < self.address + pagesize:
             pass
         else:
             # scroll the page; change base address
@@ -956,22 +1025,46 @@ class HexWindow(textmode.Window):
 
             elif key == '?':
                 # find backwards
-                self.search.prompt = '?'
-                self.search.show()
-                ret = self.search.runloop()
-                if ret == textmode.RETURN_TO_PREVIOUS:
-                    continue
-
-                # TODO implement backward search
+                self.find_backwards()
 
             elif key == '/' or key == 'Ctrl-F':
                 self.find()
 
             elif key == 'n' or key == 'Ctrl-G':
                 # search again
-                # FIXME search direction; find again backwards
-                self.find(again=True)
+                if self.searchdir == HexWindow.FORWARD:
+                    self.find(again=True)
+                elif self.searchdir == HexWindow.BACKWARD:
+                    self.find_backwards(again=True)
 
+
+
+def bytearray_find_backwards(data, search, pos=-1):
+    '''search bytearray backwards for string
+    Returns index if found or -1 if not found
+    May raise ValueError for invalid search
+    '''
+
+    if data is None or not len(data):
+        raise ValueError
+
+    if search is None or not search:
+        raise ValueError
+
+    if pos == -1:
+        pos = len(data)
+
+    if pos < 0:
+        return ValueError
+
+    pos -= len(search)
+    while pos >= 0:
+        if data[pos:pos + len(search)] == search:
+            return pos
+
+        pos -= 1
+
+    return -1
 
 
 def hexview_main():
