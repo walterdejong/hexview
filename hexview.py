@@ -127,10 +127,15 @@ class HexWindow(textmode.Window):
             self.draw_ascii(y)
             y += 1
 
-    def draw_address(self, y):
+    def draw_address(self, y, mark=None):
         '''draw address for line y'''
 
-        self.puts(0, y, '%08X' % (self.address + y * 16), self.colors.text)
+        if mark is not None:
+            color = mark
+        else:
+            color = self.colors.text
+
+        self.puts(0, y, '%08X' % (self.address + y * 16), color)
 
     def draw_bytes(self, y):
         '''draw bytes for line y'''
@@ -454,13 +459,16 @@ class HexWindow(textmode.Window):
             x += 1
             offset += 1
 
-    def draw_cursor(self, clear=False):
+    def draw_cursor(self, clear=False, mark=None):
         '''draw cursor'''
 
         if clear or self.really_lose_focus:
             color = self.colors.text
         else:
             color = self.colors.cursor
+
+        if mark is not None:
+            color = mark
 
         y = self.cursor_y
         try:
@@ -1082,6 +1090,17 @@ class HexWindow(textmode.Window):
             self.draw()
             self.draw_cursor()
 
+    def copy_address(self):
+        '''copy current address to jump history'''
+
+        addr = self.address + self.cursor_y * 16 + self.cursor_x
+        self.jumpaddr.textfield.history.append('%08X' % addr)
+
+        # give visual feedback
+        color = textmode.video_color(WHITE, RED, bold=True)
+        self.draw_address(self.cursor_y, mark=color)
+        self.draw_cursor(mark=color)
+
     def move_begin_line(self):
         '''goto beginning of line'''
 
@@ -1292,6 +1311,9 @@ Walter de Jong <walter@heiho.net>''' % ('-' * len(VERSION), VERSION)
             elif key == '@':
                 self.jump_address()
 
+            elif key == 'm':
+                self.copy_address()
+
 
 
 def bytearray_find_backwards(data, search, pos=-1):
@@ -1355,12 +1377,14 @@ class HelpWindow(textmode.TextWindow):
 
 Command keys
  :                    Enter command mode
- @                    Jump to address
  /        Ctrl-F      Find
  ?                    Find backwards
  n        Ctrl-G      Find again
  x        Ctrl-X      Find hexadecimal
- v        Ctrl-V      Enter selection mode
+ @                    Jump to address
+ m                    Mark; copy address to
+                            jump history
+
  1                    View single bytes
  2                    View 16-bit words
  3                    View 16-bit words, swapped
@@ -1368,6 +1392,11 @@ Command keys
  5                    View 32-bit words, swapped
  <                    Roll left
  >                    Roll right
+ v        Ctrl-V      Toggle selection mode
+
+ hjkl     arrows      Move cursor
+ Ctrl-U   PageUp      Go one page up
+ Ctrl-V   PageDown    Go one page down
  g        Home        Go to top
  G        End         Go to end
  ^        0           Go to start of line
@@ -1375,9 +1404,6 @@ Command keys
  H                    Go to top of screen
  M                    Go to middle of screen
  L                    Go to bottom of screen
- Ctrl-U   PageUp      Go one page up
- Ctrl-V   PageDown    Go one page down
- hjkl     arrows      Move cursor
 
  Ctrl-R               Redraw screen
  Ctrl-Q               Force quit'''
