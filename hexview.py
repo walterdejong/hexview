@@ -12,7 +12,7 @@ import textmode
 
 from textmode import WHITE, YELLOW, GREEN, CYAN, BLUE, MAGENTA, RED, BLACK
 from textmode import getch, KEY_ESC, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT
-from textmode import KEY_PAGEUP, KEY_PAGEDOWN, KEY_HOME, KEY_END
+from textmode import KEY_PAGEUP, KEY_PAGEDOWN, KEY_HOME, KEY_END, KEY_RETURN
 from textmode import VIDEO
 from textmode import debug
 
@@ -1042,57 +1042,7 @@ class HexWindow(textmode.Window):
     def show_help(self):
         '''show help window'''
 
-        text = '''Commands
- :help    :?          Show this information
- :q       :q!         Quit
-
- :0                   Go to top
-
-Command keys
- :                    Enter command mode
- /        Ctrl-F      Find
- ?                    Find backwards
- n        Ctrl-G      Find again
- v        Ctrl-V      Enter selection mode
- 1                    View single bytes
- 2                    View 16-bit words
- 3                    View 16-bit words, swapped
- 4                    View 32-bit words
- 5                    View 32-bit words, swapped
- <                    Roll left
- >                    Roll right
- g        Home        Go to top
- G        End         Go to end
- ^        0           Go to start of line
- $                    Go to end of line
- H                    Go to top of screen
- M                    Go to middle of screen
- L                    Go to bottom of screen
- Ctrl-U   PageUp      Go one page up
- Ctrl-V   PageDown    Go one page down
- hjkl     arrows      Move cursor
-
- Ctrl-R               Redraw screen
- Ctrl-Q               Force quit
- 
- Press Escape to close this window'''
-
-        colors = textmode.ColorSet(BLACK, WHITE)
-        colors.title = textmode.video_color(RED, WHITE)
-        colors.status = textmode.video_color(BLACK, WHITE, bold=True)
-        colors.cursor = textmode.video_color(BLACK, GREEN)
-
-        w = 52
-        h = VIDEO.h - 7
-        if h < 4:
-            h = 4
-        x = textmode.center_x(w, self.frame.w)
-        y = textmode.center_y(h, self.frame.h)
-
-        win = textmode.TextWindow(x, y, w, h, colors, title='Help',
-                                  border=True, text=text.split('\n'),
-                                  scrollbar=False, status=False)
-        win.update_scrollbar()
+        win = HelpWindow(self)
         # enable cursor-focus-hack
         self.really_lose_focus = True
         win.show()
@@ -1216,6 +1166,100 @@ def bytearray_find_backwards(data, search, pos=-1):
         pos -= 1
 
     return -1
+
+
+
+class HelpWindow(textmode.TextWindow):
+    '''displays usage information'''
+
+    def __init__(self, parent):
+        '''initialize'''
+
+        text = '''Commands
+ :help    :?          Show this information
+ :q       :q!         Quit
+
+ :0                   Go to top
+
+Command keys
+ :                    Enter command mode
+ /        Ctrl-F      Find
+ ?                    Find backwards
+ n        Ctrl-G      Find again
+ v        Ctrl-V      Enter selection mode
+ 1                    View single bytes
+ 2                    View 16-bit words
+ 3                    View 16-bit words, swapped
+ 4                    View 32-bit words
+ 5                    View 32-bit words, swapped
+ <                    Roll left
+ >                    Roll right
+ g        Home        Go to top
+ G        End         Go to end
+ ^        0           Go to start of line
+ $                    Go to end of line
+ H                    Go to top of screen
+ M                    Go to middle of screen
+ L                    Go to bottom of screen
+ Ctrl-U   PageUp      Go one page up
+ Ctrl-V   PageDown    Go one page down
+ hjkl     arrows      Move cursor
+
+ Ctrl-R               Redraw screen
+ Ctrl-Q               Force quit'''
+
+        colors = textmode.ColorSet(BLACK, WHITE)
+        colors.title = textmode.video_color(RED, WHITE)
+        colors.cursor = textmode.video_color(BLACK, GREEN)
+
+        w = 52
+        h = parent.frame.h - 6
+        if h < 4:
+            h = 4
+        x = textmode.center_x(w, parent.frame.w)
+        y = textmode.center_y(h, parent.frame.h)
+
+        super(HelpWindow, self).__init__(x, y, w, h, colors, title='Help',
+                                         border=True, text=text.split('\n'),
+                                         scrollbar=False, status=False)
+
+    def runloop(self):
+        '''run the Help window'''
+
+        # this is the same as for TextWindow, but the
+        # hexview app uses some more navigation keys
+
+        while True:
+            key = getch()
+
+            if key == KEY_ESC or key == ' ' or key == KEY_RETURN:
+                self.lose_focus()
+                return textmode.RETURN_TO_PREVIOUS
+
+            elif key == KEY_UP or key == 'k':
+                self.move_up()
+
+            elif key == KEY_DOWN or key == 'j':
+                self.move_down()
+
+            elif key == KEY_LEFT or key == 'h':
+                self.move_left()
+
+            elif key == KEY_RIGHT or key == 'l':
+                self.move_right()
+
+            elif key == KEY_PAGEUP or key == 'Ctrl-U':
+                self.pageup()
+
+            elif key == KEY_PAGEDOWN or key == 'Ctrl-V':
+                self.pagedown()
+
+            elif key == KEY_HOME or key == 'g':
+                self.goto_top()
+
+            elif key == KEY_END or key == 'G':
+                self.goto_bottom()
+
 
 
 def hexview_main():
