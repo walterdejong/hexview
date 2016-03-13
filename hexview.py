@@ -1186,15 +1186,15 @@ class HexWindow(textmode.Window):
         # enable cursor-focus-hack
         self.really_lose_focus = True
         win.show()
-        self.really_lose_focus = False
         win.runloop()
+        self.really_lose_focus = False
         win.close()
 
     def show_about(self):
         '''show About box'''
 
         text = '''HexView
-------%s
+--------%s
 version %s
 
 Copyright 2016 by
@@ -1220,7 +1220,6 @@ Walter de Jong <walter@heiho.net>''' % ('-' * len(VERSION), VERSION)
 
         self.really_lose_focus = False
         win.runloop()
-        win.close()
 
     def runloop(self):
         '''run the input loop
