@@ -557,15 +557,11 @@ class HexWindow(textmode.Window):
 
         addr = self.address + nlines * 16
 
-        # round up to nearest 16
-        num = len(self.data)
-        remainder = num % 16
-        if remainder > 0:
-            num += 16 - remainder
-
-        top = num - self.bounds.h * 16
-        if addr > top:
-            addr = top
+        pagesize = self.bounds.h * 16
+        if addr > len(self.data) - pagesize:
+            addr = len(self.data) - pagesize
+        if addr < 0:
+            addr = 0
 
         if addr != self.address:
             self.address = addr
@@ -827,6 +823,71 @@ class HexWindow(textmode.Window):
 
             self.draw()
 
+    def find(self, again=False):
+        '''text search'''
+
+        searchtext = ''
+
+        if not again:
+            self.search.prompt = '/'
+            self.search.show()
+            ret = self.search.runloop()
+            if ret != textmode.ENTER:
+                return
+
+            searchtext = self.search.textfield.text
+            if not searchtext:
+                again = True
+
+        if again:
+            try:
+                searchtext = self.search.textfield.history[-1]
+            except IndexError:
+                return
+
+        if not searchtext:
+            return
+
+        pos = self.address + self.cursor_y * 16 + self.cursor_x
+        if again:
+            pos += 1
+
+        try:
+            offset = self.data.find(searchtext, pos)
+        except ValueError:
+            # not found
+            offset = -1
+
+        if offset == -1:
+            self.search.show()
+            self.search.cputs(0, 0, 'Not found',
+                              textmode.video_color(WHITE, RED, bold=True))
+            getch()
+            self.search.hide()
+            return
+
+        # text was found at offset
+        self.clear_cursor()
+        # if on the same page, move the cursor
+        pagesize = self.bounds.h * 16
+        if offset + len(searchtext) < self.address + pagesize:
+            pass
+        else:
+            # scroll the page; change base address
+            self.address = offset - self.bounds.h * 8
+            if self.address > len(self.data) - pagesize:
+                self.address = len(self.data) - pagesize
+            if self.address < 0:
+                self.address = 0
+
+            self.draw()
+
+        # move cursor location
+        diff = offset - self.address
+        self.cursor_y = diff / 16
+        self.cursor_x = diff % 16
+        self.draw_cursor()
+
     def runloop(self):
         '''run the input loop
         Returns state change code
@@ -843,9 +904,6 @@ class HexWindow(textmode.Window):
             if key == KEY_ESC:
                 if self.mode & HexWindow.MODE_SELECT:
                     self.mode_selection()
-                else:
-                    self.lose_focus()
-                    return -1
 
             elif key == KEY_UP:
                 self.move_up()
@@ -906,20 +964,13 @@ class HexWindow(textmode.Window):
 
                 # TODO implement backward search
 
-            elif key == '/':
-                # find
-                self.search.prompt = '/'
-                self.search.show()
-                ret = self.search.runloop()
-                if ret == textmode.RETURN_TO_PREVIOUS:
-                    continue
-
-                # TODO implement forward search
+            elif key == '/' or key == 'Ctrl-F':
+                self.find()
 
             elif key == 'n' or key == 'Ctrl-G':
-                # search again (note: maybe backwards)
-                # TODO implement search again
-                pass
+                # search again
+                # FIXME search direction; find again backwards
+                self.find(again=True)
 
 
 
