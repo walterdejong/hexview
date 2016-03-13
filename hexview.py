@@ -65,8 +65,9 @@ class HexWindow(textmode.Window):
                                    prompt='@', inputfilter=hex_inputfilter)
 
         # this is a hack; I always want a visible cursor
-        # except when a new window is opened (like for Help)
-        self.really_lose_focus = False
+        # even though the command bar can be the front window
+        # so we can ignore focus events sometimes
+        self.ignore_focus = False
 
     def load(self, filename):
         '''load file
@@ -89,6 +90,16 @@ class HexWindow(textmode.Window):
         self.fd.close()
 
         super(HexWindow, self).close()
+
+    def lose_focus(self):
+        '''we lose focus'''
+
+        if self.ignore_focus:
+            # ignore only once
+            self.ignore_focus = False
+            return
+
+        super(HexWindow, self).lose_focus()
 
     def draw(self):
         '''draw the window'''
@@ -461,7 +472,10 @@ class HexWindow(textmode.Window):
     def draw_cursor(self, clear=False, mark=None):
         '''draw cursor'''
 
-        if clear or self.really_lose_focus:
+        if not self.flags & textmode.Window.FOCUS:
+            clear = True
+
+        if clear:
             color = self.colors.text
         else:
             color = self.colors.cursor
@@ -497,7 +511,7 @@ class HexWindow(textmode.Window):
     def draw_ascii_cursor(self, ch, color, clear):
         '''draw ascii cursor'''
 
-        if clear or self.really_lose_focus:
+        if clear:
             color = self.colors.text
         else:
             color = self.colors.cursor
@@ -851,6 +865,7 @@ class HexWindow(textmode.Window):
     def search_error(self, msg):
         '''display error message for search functions'''
 
+        self.ignore_focus = True
         self.search.show()
         self.search.cputs(0, 0, msg, textmode.video_color(WHITE, RED,
                                                           bold=True))
@@ -865,6 +880,7 @@ class HexWindow(textmode.Window):
 
         if not again:
             self.search.prompt = '/'
+            self.ignore_focus = True
             self.search.show()
             ret = self.search.runloop()
             if ret != textmode.ENTER:
@@ -927,6 +943,7 @@ class HexWindow(textmode.Window):
 
         if not again:
             self.search.prompt = '?'
+            self.ignore_focus = True
             self.search.show()
             ret = self.search.runloop()
             if ret != textmode.ENTER:
@@ -985,6 +1002,7 @@ class HexWindow(textmode.Window):
         searchtext = ''
 
         if not again:
+            self.ignore_focus = True
             self.hexsearch.show()
             ret = self.hexsearch.runloop()
             if ret != textmode.ENTER:
@@ -1062,6 +1080,7 @@ class HexWindow(textmode.Window):
     def jump_address(self):
         '''jump to address'''
 
+        self.ignore_focus = True
         self.jumpaddr.show()
         ret = self.jumpaddr.runloop()
         if ret != textmode.ENTER:
@@ -1077,6 +1096,9 @@ class HexWindow(textmode.Window):
         except ValueError:
             self.search_error('Invalid address')
             return
+
+        # make addr appear at cursor_y
+        addr -= self.cursor_y * 16
 
         pagesize = self.bounds.h * 16
         if addr > len(self.data) - pagesize:
@@ -1146,6 +1168,7 @@ class HexWindow(textmode.Window):
         Returns 0 (do nothing) or app code
         '''
 
+        self.ignore_focus = True
         self.cmdline.show()
         ret = self.cmdline.runloop()
         if ret != textmode.ENTER:
@@ -1171,6 +1194,7 @@ class HexWindow(textmode.Window):
             self.move_home()
 
         else:
+            self.ignore_focus = True
             self.cmdline.show()
             self.cmdline.cputs(0, 0, "Unknown command '%s'" % cmd,
                               textmode.video_color(WHITE, RED, bold=True))
@@ -1183,11 +1207,8 @@ class HexWindow(textmode.Window):
         '''show help window'''
 
         win = HelpWindow(self)
-        # enable cursor-focus-hack
-        self.really_lose_focus = True
         win.show()
         win.runloop()
-        self.really_lose_focus = False
         win.close()
 
     def show_about(self):
@@ -1209,8 +1230,6 @@ Walter de Jong <walter@heiho.net>''' % ('-' * len(VERSION), VERSION)
                                                          bold=True)
 
         win = textmode.Alert(colors, 'About', text)
-        # enable cursor-focus-hack
-        self.really_lose_focus = True
         win.show()
 
         # hack; make a goodlooking hline
@@ -1218,7 +1237,6 @@ Walter de Jong <walter@heiho.net>''' % ('-' * len(VERSION), VERSION)
         x = win.bounds.x + textmode.center_x(w, win.bounds.w)
         VIDEO.hline(x, win.frame.y + 3, w, curses.ACS_HLINE, colors.text)
 
-        self.really_lose_focus = False
         win.runloop()
 
     def runloop(self):
