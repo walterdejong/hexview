@@ -735,13 +735,10 @@ class HexWindow(textmode.Window):
     def goto_bottom(self):
         '''go to last page'''
 
-        # round up to nearest 16
-        num = len(self.data)
-        remainder = num % 16
-        if remainder > 0:
-            num += 16 - remainder
-
-        top = num - self.bounds.h * 16
+        pagesize = self.bounds.h * 16
+        top = len(self.data) - pagesize
+        if top < 0:
+            top = 0
 
         if self.address != top:
             self.address = top
@@ -749,10 +746,13 @@ class HexWindow(textmode.Window):
         else:
             self.clear_cursor()
 
-        self.cursor_x = remainder - 1
-        if self.cursor_x < 0:
+        if len(self.data) < pagesize:
+            self.cursor_y = len(self.data) / 16
+            self.cursor_x = len(self.data) % 16
+        else:
+            self.cursor_y = self.bounds.h - 1
             self.cursor_x = 15
-        self.cursor_y = self.bounds.h - 1
+
         self.update_selection()
         self.draw_cursor()
 
