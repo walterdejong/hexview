@@ -1214,11 +1214,6 @@ class HexWindow(textmode.Window):
             diff = addr - self.address
             self.cursor_y = diff / 16
             self.cursor_x = diff % 16
-            debug('w function:')
-            debug('  addr == %08x' % addr)
-            debug('  diff == %d' % diff)
-            debug('  cursor_y == %d' % self.cursor_y)
-            debug('  cursor_x == %d' % self.cursor_x)
             self.draw()
 
         self.draw_cursor()
@@ -1624,7 +1619,7 @@ Command keys
  H                    Go to top of screen
  M                    Go to middle of screen
  L                    Go to bottom of screen
- w                    Go to next word
+ w                    Go to next ASCII word
 
  Ctrl-R               Redraw screen
  Ctrl-Q               Force quit'''
