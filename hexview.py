@@ -52,7 +52,7 @@ class HexWindow(textmode.Window):
         self.view_option = HexWindow.OPT_8_BIT
         self.mode = 0
         self.selection_start = self.selection_end = 0
-        self.old_addr = old_x = self.old_y = 0
+        self.old_addr = self.old_x = self.old_y = 0
 
         colors = textmode.ColorSet(WHITE, BLACK)
         colors.cursor = textmode.video_color(WHITE, GREEN, bold=True)
@@ -1154,7 +1154,7 @@ class HexWindow(textmode.Window):
             self.clear_cursor()
             self.cursor_y = y
             self.draw_cursor()
-    
+
     def move_bottom(self):
         '''goto bottom of screen'''
 
@@ -1162,6 +1162,66 @@ class HexWindow(textmode.Window):
             self.clear_cursor()
             self.cursor_y = self.bounds.h - 1
             self.draw_cursor()
+
+    def move_word(self):
+        '''move to next word'''
+
+        # local func
+        def isalphanum(ch):
+            '''Returns True if character is alphanumeric'''
+
+            return ((ch >= ord('0') and ch <= ord('9')) or
+                    (ch >= ord('a') and ch <= ord('z')) or
+                    (ch >= ord('A') and ch <= ord('Z')) or
+                    (ch == ord('_')))
+
+        # local func
+        def isspace(ch):
+            '''Returns True if character is treated as space'''
+
+            return not isalphanum(ch)
+
+        end = len(self.data) - 1
+        addr = self.address + self.cursor_y * 16 + self.cursor_x
+
+        if isalphanum(self.data[addr]):
+            while isalphanum(self.data[addr]) and addr < end:
+                addr += 1
+
+        while isspace(self.data[addr]) and addr < end:
+            addr += 1
+
+        if addr == self.address:
+            return
+
+        pagesize = self.bounds.h * 16
+        if addr - self.address < pagesize:
+            # only move cursor
+            self.clear_cursor()
+            diff = addr - self.address
+            self.cursor_y = diff / 16
+            self.cursor_x = diff % 16
+        else:
+            # scroll page
+            # round up to nearest 16
+            addr2 = addr
+            mod = addr2 % 16
+            if mod != 0:
+                addr2 += 16 - mod
+            else:
+                addr2 += 16
+            self.address = addr2 - pagesize
+            diff = addr - self.address
+            self.cursor_y = diff / 16
+            self.cursor_x = diff % 16
+            debug('w function:')
+            debug('  addr == %08x' % addr)
+            debug('  diff == %d' % diff)
+            debug('  cursor_y == %d' % self.cursor_y)
+            debug('  cursor_x == %d' % self.cursor_x)
+            self.draw()
+
+        self.draw_cursor()
 
     def command(self):
         '''command mode
@@ -1197,7 +1257,7 @@ class HexWindow(textmode.Window):
             self.ignore_focus = True
             self.cmdline.show()
             self.cmdline.cputs(0, 0, "Unknown command '%s'" % cmd,
-                              textmode.video_color(WHITE, RED, bold=True))
+                               textmode.video_color(WHITE, RED, bold=True))
             getch()
             self.cmdline.hide()
 
@@ -1335,6 +1395,9 @@ Walter de Jong <walter@heiho.net>''' % ('-' * len(VERSION), VERSION)
 
             elif key == 'm':
                 self.copy_address()
+
+            elif key == 'w':
+                self.move_word()
 
 
 
@@ -1561,6 +1624,7 @@ Command keys
  H                    Go to top of screen
  M                    Go to middle of screen
  L                    Go to bottom of screen
+ w                    Go to next word
 
  Ctrl-R               Redraw screen
  Ctrl-Q               Force quit'''
