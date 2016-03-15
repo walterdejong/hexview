@@ -1166,21 +1166,6 @@ class HexWindow(textmode.Window):
     def move_word(self):
         '''move to next word'''
 
-        # local func
-        def isalphanum(ch):
-            '''Returns True if character is alphanumeric'''
-
-            return ((ch >= ord('0') and ch <= ord('9')) or
-                    (ch >= ord('a') and ch <= ord('z')) or
-                    (ch >= ord('A') and ch <= ord('Z')) or
-                    (ch == ord('_')))
-
-        # local func
-        def isspace(ch):
-            '''Returns True if character is treated as space'''
-
-            return not isalphanum(ch)
-
         end = len(self.data) - 1
         addr = self.address + self.cursor_y * 16 + self.cursor_x
 
@@ -1195,7 +1180,7 @@ class HexWindow(textmode.Window):
             return
 
         pagesize = self.bounds.h * 16
-        if addr - self.address < pagesize:
+        if self.address < addr < self.address + pagesize:
             # only move cursor
             self.clear_cursor()
             diff = addr - self.address
@@ -1211,6 +1196,45 @@ class HexWindow(textmode.Window):
             else:
                 addr2 += 16
             self.address = addr2 - pagesize
+            diff = addr - self.address
+            self.cursor_y = diff / 16
+            self.cursor_x = diff % 16
+            self.draw()
+
+        self.draw_cursor()
+
+    def move_word_back(self):
+        '''move to previous word'''
+
+        addr = self.address + self.cursor_y * 16 + self.cursor_x
+
+        # skip back over any spaces
+        while addr > 0 and isspace(self.data[addr - 1]):
+            addr -= 1
+
+        # move to beginning of word
+        while addr > 0 and isalphanum(self.data[addr - 1]):
+            addr -= 1
+
+        pagesize = self.bounds.h * 16
+        if self.address < addr < self.address + pagesize:
+            # only move cursor
+            self.clear_cursor()
+            diff = addr - self.address
+            self.cursor_y = diff / 16
+            self.cursor_x = diff % 16
+        else:
+            # scroll page
+            # round up to nearest 16
+            addr2 = addr
+            mod = addr2 % 16
+            if mod != 0:
+                addr2 += 16 - mod
+            else:
+                addr2 += 16
+            self.address = addr2 - pagesize
+            if self.address < 0:
+                self.address = 0
             diff = addr - self.address
             self.cursor_y = diff / 16
             self.cursor_x = diff % 16
@@ -1394,6 +1418,9 @@ Walter de Jong <walter@heiho.net>''' % ('-' * len(VERSION), VERSION)
             elif key == 'w':
                 self.move_word()
 
+            elif key == 'b':
+                self.move_word_back()
+
 
 
 def bytearray_find_backwards(data, search, pos=-1):
@@ -1440,6 +1467,20 @@ def hex_inputfilter(key):
     else:
         return None
 
+
+def isalphanum(ch):
+    '''Returns True if character is alphanumeric'''
+
+    return ((ch >= ord('0') and ch <= ord('9')) or
+            (ch >= ord('a') and ch <= ord('z')) or
+            (ch >= ord('A') and ch <= ord('Z')) or
+            (ch == ord('_')))
+
+
+def isspace(ch):
+    '''Returns True if character is treated as space'''
+
+    return not isalphanum(ch)
 
 
 class CommandBar(textmode.CmdLine):
@@ -1620,6 +1661,7 @@ Command keys
  M                    Go to middle of screen
  L                    Go to bottom of screen
  w                    Go to next ASCII word
+ b                    Go to previous ASCII word
 
  Ctrl-R               Redraw screen
  Ctrl-Q               Force quit'''
