@@ -8,7 +8,6 @@
 '''hex file viewer'''
 
 import curses
-import mmap
 
 import textmode
 
@@ -21,6 +20,126 @@ from textmode import debug
 
 
 VERSION = '0.9-beta'
+
+
+class MemCache(object):
+    '''loads data from file'''
+
+    IOSIZE = 256 * 1024
+
+    def __init__(self, filename=None, pagesize=25*16):
+        '''initialise'''
+
+        self.filename = None
+        self.filesize = 0
+        self.fd = None
+        self.low = self.high = 0
+        self.pagesize = pagesize
+        self.cachesize = self.pagesize * 3
+        # round up to nearest multiple of
+        if self.cachesize % MemCache.IOSIZE != 0:
+            self.cachesize += (MemCache.IOSIZE -
+                               (self.cachesize % MemCache.IOSIZE))
+        self.data = None
+
+        if filename is not None:
+            self.load(filename)
+
+    def load(self, filename):
+        '''open file'''
+
+        self.filename = filename
+        self.filesize = os.path.getsize(self.filename)
+        self.fd = open(filename)
+        self.data = bytearray(self.fd.read(self.cachesize))
+        self.low = 0
+        self.high = len(self.data)
+
+    def close(self):
+        '''close the file'''
+
+        if self.fd is not None:
+            self.fd.close()
+            self.fd = None
+
+        self.filename = None
+        self.filesize = 0
+        self.data = None
+
+    def __len__(self):
+        '''Returns length'''
+
+        return self.filesize
+
+    def __getitem__(self, idx):
+        '''Return byte or range at idx'''
+
+        if isinstance(idx, int):
+            # return byte at address
+            if idx < 0 or idx >= self.filesize:
+                raise IndexError('MemCache out of bounds error')
+
+            if idx < self.low or idx >= self.high:
+                self.pagefault(idx)
+
+            return self.data[idx - self.low]
+
+        elif isinstance(idx, slice):
+            # return slice
+            if idx.start < 0 or idx.stop > self.filesize:
+                raise IndexError('MemCache out of bounds error')
+
+            if idx.start < self.low or idx.stop > self.high:
+                self.pagefault(self.low)
+
+            return self.data[idx.start - self.low:
+                             idx.stop - self.low:idx.step]
+
+        else:
+            raise TypeError('invalid argument type')
+
+    def pagefault(self, addr):
+        '''page in data as needed'''
+
+        self.low = addr - self.cachesize / 2
+        if self.low < 0:
+            self.low = 0
+
+        self.high = addr + self.cachesize / 2
+        if self.high > self.filesize:
+            self.high = self.filesize
+
+        self.fd.seek(self.low, os.SEEK_SET)
+        size = self.high - self.low
+        self.data = bytearray(self.fd.read(size))
+        self.high = self.low + len(self.data)
+
+    def find(self, searchtext, pos):
+        '''find searchtext
+        Returns -1 if not found
+        '''
+
+        if pos < 0 or pos >= self.filesize:
+            return -1
+
+        if pos < self.low or pos + len(searchtext) >= self.high:
+            self.pagefault(self.low)
+
+        pos -= self.low
+
+        while True:
+            idx = self.data.find(searchtext, pos)
+            if idx >= 0:
+                # found
+                return idx + self.low
+
+            if self.high >= self.filesize:
+                # not found
+                return -1
+
+            self.low = self.high - len(searchtext)
+            self.pagefault(self.low)
+
 
 
 class HexWindow(textmode.Window):
@@ -44,9 +163,6 @@ class HexWindow(textmode.Window):
         super(HexWindow, self).__init__(x, y, w, h, colors, title, border)
 
         self.data = None
-        self.fd = None
-        self.mmap = None
-
         self.address = 0
         self.cursor_x = self.cursor_y = 0
         self.view_option = HexWindow.OPT_8_BIT
@@ -63,6 +179,8 @@ class HexWindow(textmode.Window):
                                     prompt='x/', inputfilter=hex_inputfilter)
         self.jumpaddr = CommandBar(0, VIDEO.h - 1, VIDEO.w, colors,
                                    prompt='@', inputfilter=hex_inputfilter)
+        self.addaddr = CommandBar(0, VIDEO.h - 1, VIDEO.w, colors,
+                                  prompt='@+', inputfilter=hex_inputfilter)
 
         # this is a hack; I always want a visible cursor
         # even though the command bar can be the front window
@@ -74,20 +192,16 @@ class HexWindow(textmode.Window):
         Raises IOError on error
         '''
 
-        self.fd = open(filename)
-        self.mmap = mmap.mmap(self.fd.fileno(), 0, access=mmap.ACCESS_READ)
-        self.data = bytearray(self.mmap)
+        self.data = MemCache(filename, self.bounds.h * 16)
 
-        self.title = filename
+        self.title = os.path.basename(filename)
         if len(self.title) > self.bounds.w:
-            self.title = self.title[:self.bounds.w - 3] + '...'
+            self.title = self.title[:self.bounds.w - 6] + '...'
 
     def close(self):
         '''close window'''
 
-        self.data = None
-        self.mmap = None
-        self.fd.close()
+        self.data.close()
 
         super(HexWindow, self).close()
 
@@ -1111,6 +1225,92 @@ class HexWindow(textmode.Window):
             self.draw()
             self.draw_cursor()
 
+    def plus_offset(self):
+        '''add offset'''
+
+        self.addaddr.prompt = '@+'
+        self.ignore_focus = True
+        self.addaddr.show()
+        ret = self.addaddr.runloop()
+        if ret != textmode.ENTER:
+            return
+
+        text = self.addaddr.textfield.text
+        text = text.replace(' ', '')
+        if not text:
+            return
+
+        try:
+            offset = int(text, 16)
+        except ValueError:
+            self.search_error('Invalid address')
+            return
+
+        addr = self.address + offset
+        if addr < 0:
+            self.search_error('Invalid address')
+            return
+
+        if addr > len(self.data):
+            self.search_error('Invalid address')
+            return
+
+        pagesize = self.bounds.h * 16
+        if addr > len(self.data) - pagesize:
+            addr = len(self.data) - pagesize
+        if addr < 0:
+            addr = 0
+
+        if addr == self.address:
+            return
+
+        self.address = addr
+        self.draw()
+        self.draw_cursor()
+
+    def minus_offset(self):
+        '''minus offset'''
+
+        self.addaddr.prompt = '@-'
+        self.ignore_focus = True
+        self.addaddr.show()
+        ret = self.addaddr.runloop()
+        if ret != textmode.ENTER:
+            return
+
+        text = self.addaddr.textfield.text
+        text = text.replace(' ', '')
+        if not text:
+            return
+
+        try:
+            offset = int(text, 16)
+        except ValueError:
+            self.search_error('Invalid address')
+            return
+
+        addr = self.address - offset
+        if addr < 0:
+            self.search_error('Invalid address')
+            return
+
+        if addr > len(self.data):
+            self.search_error('Invalid address')
+            return
+
+        pagesize = self.bounds.h * 16
+        if addr > len(self.data) - pagesize:
+            addr = len(self.data) - pagesize
+        if addr < 0:
+            addr = 0
+
+        if addr == self.address:
+            return
+
+        self.address = addr
+        self.draw()
+        self.draw_cursor()
+
     def copy_address(self):
         '''copy current address to jump history'''
 
@@ -1412,6 +1612,12 @@ Walter de Jong <walter@heiho.net>''' % ('-' * len(VERSION), VERSION)
             elif key == '@':
                 self.jump_address()
 
+            elif key == '+':
+                self.plus_offset()
+
+            elif key == '-':
+                self.minus_offset()
+
             elif key == 'm':
                 self.copy_address()
 
@@ -1637,9 +1843,6 @@ Command keys
  ?                    Find backwards
  n        Ctrl-G      Find again
  x        Ctrl-X      Find hexadecimal
- @                    Jump to address
- m                    Mark; copy address to
-                            jump history
 
  1                    View single bytes
  2                    View 16-bit words
@@ -1649,6 +1852,12 @@ Command keys
  <                    Roll left
  >                    Roll right
  v        Ctrl-V      Toggle selection mode
+
+ @                    Jump to address
+ m                    Mark; copy address to
+                            jump history
+ +                    Add offset
+ -                    Minus offset
 
  hjkl     arrows      Move cursor
  Ctrl-U   PageUp      Go one page up
