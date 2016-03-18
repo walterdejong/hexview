@@ -1493,29 +1493,8 @@ class HexWindow(textmode.Window):
     def show_about(self):
         '''show About box'''
 
-        text = '''HexView
---------%s
-version %s
-
-Copyright 2016 by
-Walter de Jong <walter@heiho.net>''' % ('-' * len(VERSION), VERSION)
-
-        colors = textmode.ColorSet(BLACK, WHITE)
-        colors.title = textmode.video_color(RED, WHITE)
-        colors.button = textmode.video_color(WHITE, BLUE, bold=True)
-        colors.buttonhotkey = textmode.video_color(YELLOW, BLUE, bold=True)
-        colors.activebutton = textmode.video_color(WHITE, GREEN, bold=True)
-        colors.activebuttonhotkey = textmode.video_color(YELLOW, GREEN,
-                                                         bold=True)
-
-        win = textmode.Alert(colors, 'About', text)
+        win = AboutBox()
         win.show()
-
-        # hack; make a goodlooking hline
-        w = len(VERSION) + 8
-        x = win.bounds.x + textmode.center_x(w, win.bounds.w)
-        VIDEO.hline(x, win.frame.y + 3, w, curses.ACS_HLINE, colors.text)
-
         win.runloop()
 
     def runloop(self):
@@ -1920,6 +1899,41 @@ Command keys
 
             elif key == KEY_END or key == 'G':
                 self.goto_bottom()
+
+
+
+class AboutBox(textmode.Alert):
+    '''about box'''
+
+    def __init__(self):
+        '''initialize'''
+
+        text = '''HexView
+--------%s
+version %s
+
+Copyright 2016 by
+Walter de Jong <walter@heiho.net>''' % ('-' * len(VERSION), VERSION)
+
+        colors = textmode.ColorSet(BLACK, WHITE)
+        colors.title = textmode.video_color(RED, WHITE)
+        colors.button = textmode.video_color(WHITE, BLUE, bold=True)
+        colors.buttonhotkey = textmode.video_color(YELLOW, BLUE, bold=True)
+        colors.activebutton = textmode.video_color(WHITE, GREEN, bold=True)
+        colors.activebuttonhotkey = textmode.video_color(YELLOW, GREEN,
+                                                         bold=True)
+        super(AboutBox, self).__init__(colors, 'About', text)
+
+    def draw(self):
+        '''draw the About box'''
+
+        super(AboutBox, self).draw()
+
+        # draw pretty horizontal line in text
+        w = len(VERSION) + 8
+        x = self.bounds.x + textmode.center_x(w, self.bounds.w)
+        VIDEO.hline(x, self.frame.y + 3, w, curses.ACS_HLINE,
+                    self.colors.text)
 
 
 
