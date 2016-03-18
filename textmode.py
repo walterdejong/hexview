@@ -194,9 +194,9 @@ class ScreenBuf(object):
         '''write message into buffer at x, y'''
 
         offset = self.w * y + x
-        for ch in msg:
-            self.__setitem__(offset, (ch, color))
-            offset += 1
+        w = len(msg)
+        self.textbuf[offset:offset + w] = msg
+        self.colorbuf[offset:offset + w] = chr(color) * w
 
     def hline(self, x, y, w, ch, color):
         '''repeat character horizontally'''
@@ -209,10 +209,8 @@ class ScreenBuf(object):
             ch |= 0x80
 
         offset = self.w * y + x
-        for _ in xrange(0, w):
-            self.textbuf[offset] = ch
-            self.colorbuf[offset] = color
-            offset += 1
+        self.textbuf[offset:offset + w] = chr(ch) * w
+        self.colorbuf[offset:offset + w] = chr(color) * w
 
     def vline(self, x, y, h, ch, color):
         '''repeat character horizontally'''
