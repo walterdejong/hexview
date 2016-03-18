@@ -857,6 +857,14 @@ class Window(object):
             win.draw()
             win.gain_focus()
 
+    def resize_event(self):
+        '''the terminal was resized'''
+
+        # override this method
+        # This method should only change coordinates;
+        # a redraw will be called automatically
+        pass
+
     def draw(self):
         '''draw the window'''
 
@@ -1593,6 +1601,25 @@ class Alert(Window):
         assert default >= 0 and default < len(self.buttons)
         self.cursor = self.default = default
 
+    def resize_event(self):
+        '''the terminal was resized'''
+
+        w = self.frame.w
+        h = self.frame.h
+        x = center_x(w, VIDEO.w)
+        y = center_y(h, VIDEO.h)
+
+        self.frame = Rect(x, y, w, h)
+
+        # bounds is the inner area; for view content
+        if self.has_border:
+            self.bounds = Rect(x + 1, y + 1, w - 2, h - 2)
+        else:
+            self.bounds = self.frame
+
+        # rect is the outer area; larger because of shadow
+        self.rect = Rect(x, y, w + 2, h + 1)
+
     def draw(self):
         '''draw the alert box'''
 
@@ -1956,6 +1983,11 @@ class MenuBar(Window):
 
         # last chosen menu entry
         self.choice = -1
+
+    def resize_event(self):
+        '''the terminal was resized'''
+
+        self.frame.w = self.bounds.w = self.rect.w = VIDEO.w
 
     def draw(self):
         '''draw menu bar'''
@@ -2613,6 +2645,28 @@ def redraw_screen():
     curses.doupdate()
 
 
+def resize_event():
+    '''the terminal was resized'''
+
+    global VIDEO
+
+    # start over
+    VIDEO = Video()
+    VIDEO.clear_screen()
+
+    for win in STACK.stack:
+        win.resize_event()
+        win.save_background()
+
+        if not win.flags & Window.SHOWN:
+            continue
+
+        win.draw()
+        win.draw_cursor()
+
+    redraw_screen()
+
+
 def getch():
     '''get keyboard input
     Returns key as a string value
@@ -2635,11 +2689,13 @@ def getch():
             # Ctrl-R redraws the screen
             redraw_screen()
 
+        elif key == curses.KEY_RESIZE:
+            # terminal was resized
+            resize_event()
+
         else:
             # got a user key
             break
-
-    # TODO if key == KEY_RESIZE: resize_event() for all windows
 
     if key >= ord(' ') and key <= ord('~'):
         # ascii keys are returned as string
