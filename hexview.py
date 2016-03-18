@@ -11,13 +11,12 @@ import curses
 
 import textmode
 
+from textmode import Rect
 from textmode import WHITE, YELLOW, GREEN, CYAN, BLUE, MAGENTA, RED, BLACK
 from textmode import getch, KEY_ESC, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT
 from textmode import KEY_PAGEUP, KEY_PAGEDOWN, KEY_HOME, KEY_END, KEY_RETURN
 from textmode import KEY_TAB, KEY_BTAB, KEY_BS, KEY_DEL
-from textmode import VIDEO
 from textmode import debug
-
 
 VERSION = '0.9-beta'
 
@@ -172,20 +171,48 @@ class HexWindow(textmode.Window):
 
         colors = textmode.ColorSet(WHITE, BLACK)
         colors.cursor = textmode.video_color(WHITE, GREEN, bold=True)
-        self.cmdline = CommandBar(0, VIDEO.h - 1, VIDEO.w, colors, prompt=':')
-        self.search = CommandBar(0, VIDEO.h - 1, VIDEO.w, colors, prompt='/')
+        self.cmdline = CommandBar(colors, prompt=':')
+        self.search = CommandBar(colors, prompt='/')
         self.searchdir = HexWindow.FORWARD
-        self.hexsearch = CommandBar(0, VIDEO.h - 1, VIDEO.w, colors,
-                                    prompt='x/', inputfilter=hex_inputfilter)
-        self.jumpaddr = CommandBar(0, VIDEO.h - 1, VIDEO.w, colors,
-                                   prompt='@', inputfilter=hex_inputfilter)
-        self.addaddr = CommandBar(0, VIDEO.h - 1, VIDEO.w, colors,
-                                  prompt='@+', inputfilter=hex_inputfilter)
+        self.hexsearch = CommandBar(colors, prompt='x/',
+                                    inputfilter=hex_inputfilter)
+        self.jumpaddr = CommandBar(colors, prompt='@',
+                                   inputfilter=hex_inputfilter)
+        self.addaddr = CommandBar(colors, prompt='@+',
+                                  inputfilter=hex_inputfilter)
 
         # this is a hack; I always want a visible cursor
         # even though the command bar can be the front window
         # so we can ignore focus events sometimes
         self.ignore_focus = False
+
+    def resize_event(self):
+        '''the terminal was resized'''
+
+        # always keep same width, but height may vary
+        x = self.frame.x
+        y = self.frame.y
+        w = self.frame.w
+        h = self.frame.h = textmode.VIDEO.h - 1
+
+        # bounds is the inner area; for view content
+        if self.has_border:
+            self.bounds = Rect(x + 1, y + 1, w - 2, h - 2)
+        else:
+            self.bounds = self.frame
+
+        # rect is the outer area; larger because of shadow
+        self.rect = Rect(x, y, w + 2, h + 1)
+
+        if self.cursor_y >= self.bounds.h:
+            self.cursor_y = self.bounds.h - 1
+
+        # resize the command and search bars
+        self.cmdline.resize_event()
+        self.search.resize_event()
+        self.hexsearch.resize_event()
+        self.jumpaddr.resize_event()
+        self.addaddr.resize_event()
 
     def load(self, filename):
         '''load file
@@ -233,11 +260,11 @@ class HexWindow(textmode.Window):
             status = 'Select'
 
         if status is None:
-            VIDEO.hline(self.bounds.x + self.bounds.w - 12,
+            textmode.VIDEO.hline(self.bounds.x + self.bounds.w - 12,
                         self.bounds.y + self.bounds.h, 10, curses.ACS_HLINE,
                         self.colors.border)
         else:
-            VIDEO.puts(self.bounds.x + self.bounds.w - 2 - len(status),
+            textmode.VIDEO.puts(self.bounds.x + self.bounds.w - 2 - len(status),
                        self.bounds.y + self.bounds.h, status,
                        self.colors.status)
 
@@ -1673,9 +1700,12 @@ class CommandBar(textmode.CmdLine):
     Same as CmdLine, but backspace can exit the command mode
     '''
 
-    def __init__(self, x, y, w, colors, prompt=None, inputfilter=None):
+    def __init__(self, colors, prompt=None, inputfilter=None):
         '''initialize'''
 
+        x = 0
+        y = textmode.VIDEO.h - 1
+        w = textmode.VIDEO.w
         super(CommandBar, self).__init__(x, y, w, colors, prompt)
 
         if self.prompt is not None:
@@ -1687,7 +1717,20 @@ class CommandBar(textmode.CmdLine):
         self.textfield = CommandField(self, x, self.bounds.y, w, colors,
                                       True, inputfilter)
 
+    def resize_event(self):
+        '''the terminal was resized'''
 
+        self.frame.w = self.bounds.w = self.rect.w = textmode.VIDEO.w
+        self.frame.y = self.bounds.y = self.rect.y = textmode.VIDEO.h - 1
+
+        w = textmode.VIDEO.w
+        if self.prompt is not None:
+            w -= len(self.prompt)
+            if w < 1:
+                w = 1
+
+        self.textfield.y = textmode.VIDEO.h - 1
+        self.textfield.w = w
 
 class CommandField(textmode.TextField):
     '''command bar edit field
@@ -1809,6 +1852,8 @@ class HelpWindow(textmode.TextWindow):
     def __init__(self, parent):
         '''initialize'''
 
+        self.parent = parent
+
         text = '''Commands
  :help    :?          Show this information
  :about               Show About box
@@ -1859,15 +1904,47 @@ Command keys
         colors.cursor = textmode.video_color(BLACK, GREEN)
 
         w = 52
-        h = parent.frame.h - 6
+        h = self.parent.frame.h - 6
         if h < 4:
             h = 4
-        x = textmode.center_x(w, parent.frame.w)
-        y = textmode.center_y(h, parent.frame.h)
+        x = textmode.center_x(w, self.parent.frame.w)
+        y = textmode.center_y(h, self.parent.frame.h)
 
         super(HelpWindow, self).__init__(x, y, w, h, colors, title='Help',
                                          border=True, text=text.split('\n'),
                                          scrollbar=False, status=False)
+
+    def resize_event(self):
+        '''the terminal was resized'''
+
+        # Note: this works alright because the HelpWindow
+        # is always on top of its parent window ...
+
+        w = self.frame.w
+        h = self.parent.frame.h - 6
+        if h < 4:
+            h = 4
+        x = textmode.center_x(w, self.parent.frame.w)
+        y = textmode.center_y(h, self.parent.frame.h)
+
+        self.frame = Rect(x, y, w, h)
+
+        # bounds is the inner area; for view content
+        if self.has_border:
+            self.bounds = Rect(x + 1, y + 1, w - 2, h - 2)
+        else:
+            self.bounds = self.frame
+
+        # rect is the outer area; larger because of shadow
+        self.rect = Rect(x, y, w + 2, h + 1)
+
+        if self.cursor >= self.bounds.h:
+            self.cursor = self.bounds.h - 1
+
+        if self.top > len(self.text) - self.bounds.h:
+            self.top = len(self.text) - self.bounds.h
+            if self.top < 0:
+                self.top = 0
 
     def runloop(self):
         '''run the Help window'''
@@ -1932,7 +2009,7 @@ Walter de Jong <walter@heiho.net>''' % ('-' * len(VERSION), VERSION)
         # draw pretty horizontal line in text
         w = len(VERSION) + 8
         x = self.bounds.x + textmode.center_x(w, self.bounds.w)
-        VIDEO.hline(x, self.frame.y + 3, w, curses.ACS_HLINE,
+        textmode.VIDEO.hline(x, self.frame.y + 3, w, curses.ACS_HLINE,
                     self.colors.text)
 
 
@@ -1945,13 +2022,13 @@ def hexview_main():
     colors.status = colors.cursor
     colors.invisibles = textmode.video_color(BLUE, CYAN, bold=True)
 
-    view = HexWindow(0, 0, 80, VIDEO.h - 1, colors)
+    view = HexWindow(0, 0, 80, textmode.VIDEO.h - 1, colors)
     view.load(sys.argv[1])
     view.show()
 
-    VIDEO.puts(0, VIDEO.h - 1, 'Enter :help for usage information',
-               textmode.video_color(WHITE, BLACK))
-
+    textmode.VIDEO.puts(0, textmode.VIDEO.h - 1,
+                        'Enter :help for usage information',
+                        textmode.video_color(WHITE, BLACK))
     view.runloop()
 
 
@@ -1965,7 +2042,6 @@ if __name__ == '__main__':
         sys.exit(1)
 
     textmode.init()
-    VIDEO = textmode.Video()
 
     try:
         hexview_main()

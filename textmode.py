@@ -1094,13 +1094,18 @@ class TextWindow(Window):
     def printline(self, y, color=-1):
         '''print a single line'''
 
-        line = self.text[self.top + y]
-        # replace tabs by spaces
-        # This is because curses will display them too big
-        line = line.replace('\t', ' ' * self.tabsize)
-        # take x-scrolling into account
-        line = line[self.xoffset:]
-        self.cputs(0, y, line, color)
+        try:
+            line = self.text[self.top + y]
+        except IndexError:
+            # draw empty line
+            self.cputs(0, y, '', color)
+        else:
+            # replace tabs by spaces
+            # This is because curses will display them too big
+            line = line.replace('\t', ' ' * self.tabsize)
+            # take x-scrolling into account
+            line = line[self.xoffset:]
+            self.cputs(0, y, line, color)
 
     def init_scrollbar(self):
         '''initalize scrollbar'''
