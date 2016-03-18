@@ -609,6 +609,26 @@ class Video(object):
             self.screenbuf[rx, by] = (curses.ACS_LRCORNER, color)
             self.curses_putch(rx, by, curses.ACS_LRCORNER, attr)
 
+    def color_putch(self, x, y, color=-1):
+        '''put color at x, y'''
+
+        if not self.rect.clip_point(x, y):
+            return
+
+        if color == -1:
+            color = self.color
+            attr = self.curses_color
+        else:
+            attr = curses_color(color)
+
+        # get the character and redraw with color
+        offset = self.w * y + x
+        ch, _ = self.screenbuf[offset]
+        self.screenbuf[offset] = (ch, color)
+        if isinstance(ch, str):
+            ch = ord(ch)
+        self.curses_putch(x, y, ch, attr)
+
     def color_hline(self, x, y, w, color=-1):
         '''draw horizontal color line'''
 
@@ -990,6 +1010,17 @@ class Window(object):
             clear_eol = ' ' * w_eol
             VIDEO.puts(self.bounds.x + cx + l, self.bounds.y + cy,
                        clear_eol, color)
+
+    def color_putch(self, x, y, color=-1):
+        '''put color byte in window'''
+
+        if not self.bounds.clip_point(x, y):
+            return
+
+        if color == -1:
+            color = self.colors.text
+
+        VIDEO.color_putch(self.bounds.x + x, self.bounds.y + y, color)
 
 
 
