@@ -22,8 +22,8 @@ from textmode import debug
 VERSION = '0.9-beta'
 
 
-class MemCache(object):
-    '''loads data from file'''
+class MemoryFile(object):
+    '''access file data as if it is an in-memory array'''
 
     IOSIZE = 256 * 1024
 
@@ -37,9 +37,9 @@ class MemCache(object):
         self.pagesize = pagesize
         self.cachesize = self.pagesize * 3
         # round up to nearest multiple of
-        if self.cachesize % MemCache.IOSIZE != 0:
-            self.cachesize += (MemCache.IOSIZE -
-                               (self.cachesize % MemCache.IOSIZE))
+        if self.cachesize % MemoryFile.IOSIZE != 0:
+            self.cachesize += (MemoryFile.IOSIZE -
+                               (self.cachesize % MemoryFile.IOSIZE))
         self.data = None
 
         if filename is not None:
@@ -77,7 +77,7 @@ class MemCache(object):
         if isinstance(idx, int):
             # return byte at address
             if idx < 0 or idx >= self.filesize:
-                raise IndexError('MemCache out of bounds error')
+                raise IndexError('MemoryFile out of bounds error')
 
             if idx < self.low or idx >= self.high:
                 self.pagefault(idx)
@@ -87,7 +87,7 @@ class MemCache(object):
         elif isinstance(idx, slice):
             # return slice
             if idx.start < 0 or idx.stop > self.filesize:
-                raise IndexError('MemCache out of bounds error')
+                raise IndexError('MemoryFile out of bounds error')
 
             if idx.start < self.low or idx.stop > self.high:
                 self.pagefault(self.low)
@@ -192,7 +192,7 @@ class HexWindow(textmode.Window):
         Raises IOError on error
         '''
 
-        self.data = MemCache(filename, self.bounds.h * 16)
+        self.data = MemoryFile(filename, self.bounds.h * 16)
 
         self.title = os.path.basename(filename)
         if len(self.title) > self.bounds.w:
