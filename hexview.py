@@ -199,25 +199,27 @@ class HexWindow(textmode.Window):
     def resize_event(self):
         '''the terminal was resized'''
 
-        # FIXME resizing ValueSubWindow
-
         # always keep same width, but height may vary
         x = self.frame.x
         y = self.frame.y
         w = self.frame.w
-        h = self.frame.h = textmode.VIDEO.h - 1
+        if self.mode & HexWindow.MODE_VALUES:
+            h = self.frame.h = (textmode.VIDEO.h - 1 -
+                                (self.valueview.frame.h - 1))
+        else:
+            h = self.frame.h = textmode.VIDEO.h - 1
 
         # bounds is the inner area; for view content
         if self.has_border:
             self.bounds = Rect(x + 1, y + 1, w - 2, h - 2)
         else:
-            self.bounds = self.frame
+            self.bounds = self.frame.copy()
 
         # rect is the outer area; larger because of shadow
         if self.has_shadow:
             self.rect = Rect(x, y, w + 2, h + 1)
         else:
-            self.rect = Rect(x, y, w, h)
+            self.rect = self.frame.copy()
 
         if self.cursor_y >= self.bounds.h:
             self.cursor_y = self.bounds.h - 1
@@ -228,6 +230,7 @@ class HexWindow(textmode.Window):
         self.hexsearch.resize_event()
         self.jumpaddr.resize_event()
         self.addaddr.resize_event()
+        self.valueview.resize_event()
 
     def load(self, filename):
         '''load file
@@ -1660,6 +1663,20 @@ class ValueSubWindow(textmode.Window):
             self.endian = ValueSubWindow.BIG_ENDIAN
         else:
             self.endian = ValueSubWindow.LITTLE_ENDIAN
+
+    def resize_event(self):
+        '''the terminal was resized'''
+
+        # use fixed width and height, but
+        # the position may change; stick to bottom
+
+        self.frame.y = textmode.VIDEO.h - self.frame.h - 1
+        if self.has_border:
+            self.bounds.y = self.frame.y + 1
+        else:
+            self.bounds.y = self.frame.y
+
+        self.rect.y = self.frame.y
 
     def draw(self):
         '''draw the value subwindow'''
