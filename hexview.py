@@ -618,21 +618,9 @@ class HexWindow(textmode.Window):
         if self.mode & HexWindow.MODE_SELECT:
             self.draw_selection()
 
-        # position of hex view cursor depends on view_option
-        if self.view_option == HexWindow.OPT_8_BIT:
-            self.draw_cursor_8bit(color)
-
-        elif self.view_option == HexWindow.OPT_16_BIT:
-            self.draw_cursor_16bit(color)
-
-        elif self.view_option == HexWindow.OPT_16_BIT_SWAP:
-            self.draw_cursor_16bit_swap(color)
-
-        elif self.view_option == HexWindow.OPT_32_BIT:
-            self.draw_cursor_32bit(color)
-
-        elif self.view_option == HexWindow.OPT_32_BIT_SWAP:
-            self.draw_cursor_32bit_swap(color)
+        offset = self.address + self.cursor_y * 16 + self.cursor_x
+        x = self.hexview_position(offset)
+        self.draw_cursor_at(10 + x, self.cursor_y, color)
 
         y = self.cursor_y
         try:
@@ -665,62 +653,60 @@ class HexWindow(textmode.Window):
         textmode.VIDEO.color_hline(self.bounds.x + x, self.bounds.y + y,
                                    2, color)
 
-    def draw_cursor_8bit(self, color):
-        '''draw hex bytes cursor'''
-
-        x = 10 + self.cursor_x * 3
-        if self.cursor_x >= 8:
-            x += 1
-        self.draw_cursor_at(x, self.cursor_y, color)
-
-    def draw_cursor_16bit(self, color):
-        '''draw hex bytes cursor'''
-
-        x = 10
-        x += self.cursor_x / 2 * 6
-        if self.cursor_x & 1:
-            x += 2
-        if self.cursor_x >= 8:
-            x += 1
-        self.draw_cursor_at(x, self.cursor_y, color)
-
-    def draw_cursor_16bit_swap(self, color):
-        '''draw hex bytes cursor'''
-
-        x = 10
-        x += self.cursor_x / 2 * 6
-        if not self.cursor_x & 1:
-            x += 2
-        if self.cursor_x >= 8:
-            x += 1
-        self.draw_cursor_at(x, self.cursor_y, color)
-
-    def draw_cursor_32bit(self, color):
-        '''draw hex bytes cursor'''
-
-        x = 10
-        x += self.cursor_x / 4 * 12
-        mod = self.cursor_x % 4
-        x += mod * 2
-        if self.cursor_x >= 8:
-            x += 1
-        self.draw_cursor_at(x, self.cursor_y, color)
-
-    def draw_cursor_32bit_swap(self, color):
-        '''draw hex bytes cursor'''
-
-        x = 10
-        x += self.cursor_x / 4 * 12
-        mod = self.cursor_x % 4
-        x += (3 - mod) * 2
-        if self.cursor_x >= 8:
-            x += 1
-        self.draw_cursor_at(x, self.cursor_y, color)
-
     def clear_cursor(self):
         '''clear the cursor'''
 
         self.draw_cursor(clear=True)
+
+    def hexview_position(self, offset):
+        '''Returns x position in hex view for offset
+        Returns -1 for out of bounds offset
+        '''
+
+        if offset < 0:
+            return -1
+
+        pagesize = self.bounds.h * 16
+        if offset > self.address + pagesize:
+            return -1
+
+        offset = (offset - self.address) % 16
+
+        x = 0
+        if self.view_option == HexWindow.OPT_8_BIT:
+            x = offset * 3
+            if offset >= 8:
+                x += 1
+
+        elif self.view_option == HexWindow.OPT_16_BIT:
+            x = offset / 2 * 6
+            if offset & 1:
+                x += 2
+            if offset >= 8:
+                x += 1
+
+        elif self.view_option == HexWindow.OPT_16_BIT_SWAP:
+            x = self.cursor_x / 2 * 6
+            if not self.cursor_x & 1:
+                x += 2
+            if self.cursor_x >= 8:
+                x += 1
+
+        elif self.view_option == HexWindow.OPT_32_BIT:
+            x = offset / 4 * 12
+            mod = offset % 4
+            x += mod * 2
+            if offset >= 8:
+                x += 1
+
+        elif self.view_option == HexWindow.OPT_32_BIT_SWAP:
+            x = offset / 4 * 12
+            mod = offset % 4
+            x += (3 - mod) * 2
+            if offset >= 8:
+                x += 1
+
+        return x
 
     def draw_selection(self):
         '''draw selection'''
@@ -738,6 +724,7 @@ class HexWindow(textmode.Window):
         endx = (end - self.address) % 16
         endy = (end - self.address) / 16
 
+        # ASCII view
         if starty == endy:
             textmode.VIDEO.color_hline(self.bounds.x + 60 + startx,
                                        self.bounds.y + starty, endx - startx,
@@ -751,6 +738,27 @@ class HexWindow(textmode.Window):
                                            self.bounds.y + j, 16,
                                            self.colors.cursor)
             textmode.VIDEO.color_hline(self.bounds.x + 60,
+                                       self.bounds.y + endy, endx,
+                                       self.colors.cursor)
+
+        # hex view start/end position depend on viewing mode
+        startx = self.hexview_position(start)
+        endx = self.hexview_position(end)
+
+        if starty == endy:
+            textmode.VIDEO.color_hline(self.bounds.x + 10 + startx,
+                                       self.bounds.y + starty, endx - startx,
+                                       self.colors.cursor)
+        else:
+            w = 16 * 3
+            textmode.VIDEO.color_hline(self.bounds.x + 10 + startx,
+                                       self.bounds.y + starty, w - startx,
+                                       self.colors.cursor)
+            for j in xrange(starty + 1, endy):
+                textmode.VIDEO.color_hline(self.bounds.x + 10,
+                                           self.bounds.y + j, w,
+                                           self.colors.cursor)
+            textmode.VIDEO.color_hline(self.bounds.x + 10,
                                        self.bounds.y + endy, endx,
                                        self.colors.cursor)
 
