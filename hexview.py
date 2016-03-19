@@ -262,7 +262,6 @@ class HexWindow(textmode.Window):
             self.draw_view_32bit()
 
         self.draw_statusbar()
-        # FIXME draw selection (in draw_cursor() ?)
 
     def draw_statusbar(self):
         '''draw statusbar'''
