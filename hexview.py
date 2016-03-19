@@ -144,13 +144,11 @@ class MemoryFile(object):
 class HexWindow(textmode.Window):
     '''hex viewer main window'''
 
-    OPT_8_BIT = 1
-    OPT_16_BIT = 2
-    OPT_16_BIT_SWAP = 3
-    OPT_32_BIT = 4
-    OPT_32_BIT_SWAP = 5
-
-    MODE_SELECT = 1
+    MODE_8BIT = 1
+    MODE_16BIT = 2
+    MODE_32BIT = 4
+    CLEAR_VIEWMODE = 0xffff & ~7
+    MODE_SELECT = 8
 
     # search direction
     FORWARD = 0
@@ -168,8 +166,7 @@ class HexWindow(textmode.Window):
         self.data = None
         self.address = 0
         self.cursor_x = self.cursor_y = 0
-        self.view_option = HexWindow.OPT_8_BIT
-        self.mode = 0
+        self.mode = HexWindow.MODE_8BIT
         self.selection_start = self.selection_end = 0
         self.old_addr = self.old_x = self.old_y = 0
 
@@ -254,20 +251,14 @@ class HexWindow(textmode.Window):
 
         super(HexWindow, self).draw()
 
-        if self.view_option == HexWindow.OPT_8_BIT:
+        if self.mode & HexWindow.MODE_8BIT:
             self.draw_view_8bit()
 
-        elif self.view_option == HexWindow.OPT_16_BIT:
+        elif self.mode & HexWindow.MODE_16BIT:
             self.draw_view_16bit()
 
-        elif self.view_option == HexWindow.OPT_16_BIT_SWAP:
-            self.draw_view_16bit_swapped()
-
-        elif self.view_option == HexWindow.OPT_32_BIT:
+        elif self.mode & HexWindow.MODE_32BIT:
             self.draw_view_32bit()
-
-        elif self.view_option == HexWindow.OPT_32_BIT_SWAP:
-            self.draw_view_32bit_swapped()
 
         self.draw_statusbar()
         # FIXME draw selection (in draw_cursor() ?)
@@ -383,60 +374,6 @@ class HexWindow(textmode.Window):
             self.draw_ascii(y)
             y += 1
 
-    def draw_view_16bit_swapped(self):
-        '''draw hexview for 16 bit words, swapped'''
-
-        y = 0
-        while y < self.bounds.h:
-            # address
-            offset = self.address + y * 16
-            line = '%08X  ' % offset
-
-            # left block
-            try:
-                # try fast(er) implementation
-                line += (('%02X%02X  %02X%02X  %02X%02X  %02X%02X   '
-                          '%02X%02X  %02X%02X  %02X%02X  %02X%02X') %
-                          (self.data[offset + 1], self.data[offset],
-                           self.data[offset + 3], self.data[offset + 2],
-                           self.data[offset + 5], self.data[offset + 4],
-                           self.data[offset + 7], self.data[offset + 6],
-                           self.data[offset + 9], self.data[offset + 8],
-                           self.data[offset + 11], self.data[offset + 10],
-                           self.data[offset + 13], self.data[offset + 12],
-                           self.data[offset + 15], self.data[offset + 14]))
-            except IndexError:
-                # do the slower version
-                for i in xrange(0, 4):
-                    try:
-                        line += '%02X' % self.data[offset + i * 2 + 1]
-                    except IndexError:
-                        line += '  '
-                    try:
-                        line += '%02X' % self.data[offset + i * 2]
-                    except IndexError:
-                        line += '  '
-                    line += '  '
-
-                offset += 8
-                line += ' '
-                # right block
-                for i in xrange(0, 4):
-                    try:
-                        line += '%02X' % self.data[offset + i * 2 + 1]
-                    except IndexError:
-                        line += '  '
-                    try:
-                        line += '%02X' % self.data[offset + i * 2]
-                    except IndexError:
-                        line += '  '
-                    line += '  '
-
-            self.puts(0, y, line, self.colors.text)
-
-            self.draw_ascii(y)
-            y += 1
-
     def draw_view_32bit(self):
         '''draw hexview for 32 bit words'''
 
@@ -498,76 +435,6 @@ class HexWindow(textmode.Window):
                         line += '  '
                     try:
                         line += '%02X' % self.data[offset + i * 4 + 3]
-                    except IndexError:
-                        line += '  '
-                    line += '    '
-
-            self.puts(0, y, line, self.colors.text)
-
-            self.draw_ascii(y)
-            y += 1
-
-    def draw_view_32bit_swapped(self):
-        '''draw hexview for 32 bit words, swapped'''
-
-        y = 0
-        while y < self.bounds.h:
-            # address
-            offset = self.address + y * 16
-            line = '%08X  ' % offset
-
-            # left block
-            try:
-                # try fast(er) implementation
-                line += (('%02X%02X%02X%02X    %02X%02X%02X%02X     '
-                          '%02X%02X%02X%02X    %02X%02X%02X%02X') %
-                          (self.data[offset + 1], self.data[offset],
-                           self.data[offset + 3], self.data[offset + 2],
-                           self.data[offset + 5], self.data[offset + 4],
-                           self.data[offset + 7], self.data[offset + 6],
-                           self.data[offset + 9], self.data[offset + 8],
-                           self.data[offset + 11], self.data[offset + 10],
-                           self.data[offset + 13], self.data[offset + 12],
-                           self.data[offset + 15], self.data[offset + 14]))
-            except IndexError:
-                # do the slower version
-                for i in xrange(0, 2):
-                    try:
-                        line += '%02X' % self.data[offset + i * 4 + 3]
-                    except IndexError:
-                        line += '  '
-                    try:
-                        line += '%02X' % self.data[offset + i * 4 + 2]
-                    except IndexError:
-                        line += '  '
-                    try:
-                        line += '%02X' % self.data[offset + i * 4 + 1]
-                    except IndexError:
-                        line += '  '
-                    try:
-                        line += '%02X' % self.data[offset + i * 4]
-                    except IndexError:
-                        line += '  '
-                    line += '    '
-
-                offset += 8
-                line += ' '
-                # right block
-                for i in xrange(0, 2):
-                    try:
-                        line += '%02X' % self.data[offset + i * 4 + 3]
-                    except IndexError:
-                        line += '  '
-                    try:
-                        line += '%02X' % self.data[offset + i * 4 + 2]
-                    except IndexError:
-                        line += '  '
-                    try:
-                        line += '%02X' % self.data[offset + i * 4 + 1]
-                    except IndexError:
-                        line += '  '
-                    try:
-                        line += '%02X' % self.data[offset + i * 4]
                     except IndexError:
                         line += '  '
                     line += '    '
@@ -673,36 +540,22 @@ class HexWindow(textmode.Window):
         offset = (offset - self.address) % 16
 
         x = 0
-        if self.view_option == HexWindow.OPT_8_BIT:
+        if self.mode & HexWindow.MODE_8BIT:
             x = offset * 3
             if offset >= 8:
                 x += 1
 
-        elif self.view_option == HexWindow.OPT_16_BIT:
+        elif self.mode & HexWindow.MODE_16BIT:
             x = offset / 2 * 6
             if offset & 1:
                 x += 2
             if offset >= 8:
                 x += 1
 
-        elif self.view_option == HexWindow.OPT_16_BIT_SWAP:
-            x = self.cursor_x / 2 * 6
-            if not self.cursor_x & 1:
-                x += 2
-            if self.cursor_x >= 8:
-                x += 1
-
-        elif self.view_option == HexWindow.OPT_32_BIT:
+        elif self.mode & HexWindow.MODE_32BIT:
             x = offset / 4 * 12
             mod = offset % 4
             x += mod * 2
-            if offset >= 8:
-                x += 1
-
-        elif self.view_option == HexWindow.OPT_32_BIT_SWAP:
-            x = offset / 4 * 12
-            mod = offset % 4
-            x += (3 - mod) * 2
             if offset >= 8:
                 x += 1
 
@@ -986,24 +839,24 @@ class HexWindow(textmode.Window):
         '''set view option'''
 
         update = False
-        if key == '1' and self.view_option != HexWindow.OPT_8_BIT:
-            self.view_option = HexWindow.OPT_8_BIT
+        if (key == '1' and
+                self.mode & HexWindow.MODE_8BIT != HexWindow.MODE_8BIT):
+            self.mode &= HexWindow.CLEAR_VIEWMODE
+            self.mode |= HexWindow.MODE_8BIT
             update = True
 
-        elif key == '2' and self.view_option != HexWindow.OPT_16_BIT:
-            self.view_option = HexWindow.OPT_16_BIT
+        elif (key == '2' and
+                self.mode & HexWindow.MODE_16BIT != HexWindow.MODE_16BIT):
+            debug('setting 16 bit mode')
+            self.mode &= HexWindow.CLEAR_VIEWMODE
+            self.mode |= HexWindow.MODE_16BIT
+            debug('mode == %d' % self.mode)
             update = True
 
-        elif key == '3' and self.view_option != HexWindow.OPT_16_BIT_SWAP:
-            self.view_option = HexWindow.OPT_16_BIT_SWAP
-            update = True
-
-        elif key == '4' and self.view_option != HexWindow.OPT_32_BIT:
-            self.view_option = HexWindow.OPT_32_BIT
-            update = True
-
-        elif key == '5' and self.view_option != HexWindow.OPT_32_BIT_SWAP:
-            self.view_option = HexWindow.OPT_32_BIT_SWAP
+        elif (key == '4' and
+                self.mode & HexWindow.MODE_32BIT != HexWindow.MODE_32BIT):
+            self.mode &= HexWindow.CLEAR_VIEWMODE
+            self.mode |= HexWindow.MODE_32BIT
             update = True
 
         if update:
@@ -1921,12 +1774,10 @@ Command keys
 
  1                    View single bytes
  2                    View 16-bit words
- 3                    View 16-bit words, swapped
  4                    View 32-bit words
- 5                    View 32-bit words, swapped
  <                    Roll left
  >                    Roll right
- v        Ctrl-V      Toggle selection mode
+ v                    Toggle selection mode
 
  @                    Jump to address
  m                    Mark; copy address to
