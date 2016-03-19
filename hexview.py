@@ -615,7 +615,10 @@ class HexWindow(textmode.Window):
         if mark is not None:
             color = mark
 
-        # position of hex bytes cursor depends on view_option
+        if self.mode & HexWindow.MODE_SELECT:
+            self.draw_selection()
+
+        # position of hex view cursor depends on view_option
         if self.view_option == HexWindow.OPT_8_BIT:
             self.draw_cursor_8bit(color)
 
@@ -718,6 +721,38 @@ class HexWindow(textmode.Window):
         '''clear the cursor'''
 
         self.draw_cursor(clear=True)
+
+    def draw_selection(self):
+        '''draw selection'''
+
+        start = self.selection_start
+        if start < self.address:
+            start = self.address
+        pagesize = self.bounds.h * 16
+        end = self.selection_end
+        if end > self.address + pagesize:
+            end = self.address + pagesize
+
+        startx = (start - self.address) % 16
+        starty = (start - self.address) / 16
+        endx = (end - self.address) % 16
+        endy = (end - self.address) / 16
+
+        if starty == endy:
+            textmode.VIDEO.color_hline(self.bounds.x + 60 + startx,
+                                       self.bounds.y + starty, endx - startx,
+                                       self.colors.cursor)
+        else:
+            textmode.VIDEO.color_hline(self.bounds.x + 60 + startx,
+                                       self.bounds.y + starty, 16 - startx,
+                                       self.colors.cursor)
+            for j in xrange(starty + 1, endy):
+                textmode.VIDEO.color_hline(self.bounds.x + 60,
+                                           self.bounds.y + j, 16,
+                                           self.colors.cursor)
+            textmode.VIDEO.color_hline(self.bounds.x + 60,
+                                       self.bounds.y + endy, endx,
+                                       self.colors.cursor)
 
     def scroll_up(self, nlines=1):
         '''scroll nlines up'''
