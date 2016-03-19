@@ -1569,7 +1569,7 @@ class Alert(Window):
     '''an alert box with buttons'''
 
     def __init__(self, colors, title, msg, buttons=None, default=0,
-                 border=True):
+                 border=True, center_text=True):
         '''initialize'''
 
         # determine width and height
@@ -1587,10 +1587,13 @@ class Alert(Window):
             if bw > w:
                 w = bw
 
-        h = len(lines) + 5
+        h = len(lines) + 4
         if border:
             w += 2
             h += 2
+
+        if w > VIDEO.w:
+            w = VIDEO.w
 
         # center the box
         x = center_x(w)
@@ -1599,6 +1602,7 @@ class Alert(Window):
         super(Alert, self).__init__(x, y, w, h, colors, title, border)
 
         self.text = lines
+        self.center_text = center_text
 
         # y position of the button bar
         y = self.bounds.h - 2
@@ -1666,7 +1670,10 @@ class Alert(Window):
         # draw the text
         y = 1
         for line in self.text:
-            x = center_x(len(line), self.bounds.w)
+            if self.center_text:
+                x = center_x(len(line), self.bounds.w)
+            else:
+                x = 1
             self.cputs(x, y, line)
             y += 1
 
