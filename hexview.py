@@ -1163,31 +1163,40 @@ class HexWindow(textmode.Window):
             return
 
         try:
-            offset = int(text, 16)
+            if text[0] == '0':
+                offset = int(text, 16)
+            else:
+                offset = int(text, 10)
         except ValueError:
             self.search_error('Invalid address')
             return
 
-        addr = self.address + offset
-        if addr < 0:
-            self.search_error('Invalid address')
-            return
-
-        if addr > len(self.data):
-            self.search_error('Invalid address')
-            return
-
-        pagesize = self.bounds.h * 16
-        if addr > len(self.data) - pagesize:
-            addr = len(self.data) - pagesize
+        curr_addr = self.address + self.cursor_y * 16 + self.cursor_x
+        addr = curr_addr + offset
         if addr < 0:
             addr = 0
 
-        if addr == self.address:
+        if addr >= len(self.data):
+            addr = len(self.data) - 1
+        if addr < 0:
+            addr = 0
+
+        if addr == curr_addr:
             return
 
-        self.address = addr
-        self.draw()
+        pagesize = self.bounds.h * 16
+        if self.address <= addr < self.address + pagesize:
+            # move the cursor
+            self.clear_cursor()
+        else:
+            # move base address
+            self.address = addr
+            if self.address > len(self.data) - pagesize:
+                self.address = len(self.data) - pagesize
+            self.draw()
+
+        self.cursor_x = (addr - self.address) % 16
+        self.cursor_y = (addr - self.address) / 16
         self.draw_cursor()
 
     def minus_offset(self):
@@ -1206,31 +1215,40 @@ class HexWindow(textmode.Window):
             return
 
         try:
-            offset = int(text, 16)
+            if text[0] == '0':
+                offset = int(text, 16)
+            else:
+                offset = int(text, 10)
         except ValueError:
             self.search_error('Invalid address')
             return
 
-        addr = self.address - offset
-        if addr < 0:
-            self.search_error('Invalid address')
-            return
-
-        if addr > len(self.data):
-            self.search_error('Invalid address')
-            return
-
-        pagesize = self.bounds.h * 16
-        if addr > len(self.data) - pagesize:
-            addr = len(self.data) - pagesize
+        curr_addr = self.address + self.cursor_y * 16 + self.cursor_x
+        addr = curr_addr - offset
         if addr < 0:
             addr = 0
 
-        if addr == self.address:
+        if addr >= len(self.data):
+            addr = len(self.data) - 1
+        if addr < 0:
+            addr = 0
+
+        if addr == curr_addr:
             return
 
-        self.address = addr
-        self.draw()
+        pagesize = self.bounds.h * 16
+        if self.address <= addr < self.address + pagesize:
+            # move the cursor
+            self.clear_cursor()
+        else:
+            # move base address
+            self.address = addr
+            if self.address > len(self.data) - pagesize:
+                self.address = len(self.data) - pagesize
+            self.draw()
+
+        self.cursor_x = (addr - self.address) % 16
+        self.cursor_y = (addr - self.address) / 16
         self.draw_cursor()
 
     def copy_address(self):
