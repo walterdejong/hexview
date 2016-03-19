@@ -8,6 +8,7 @@
 '''hex file viewer'''
 
 import curses
+import struct
 
 import textmode
 
@@ -1426,6 +1427,26 @@ class HexWindow(textmode.Window):
         win.show()
         win.runloop()
 
+    def print_value(self):
+        '''print value at cursor'''
+
+        offset = self.address + self.cursor_y * 16 + self.cursor_x
+        try:
+            data = self.data[offset:offset + 8]
+        except IndexError:
+            # get data, do zero padding
+            data = bytearray(8)
+            for i in xrange(0, 8):
+                try:
+                    data[i] = self.data[offset + i]
+                except IndexError:
+                    break
+
+        win = PrintValueBox(data)
+
+        win.show()
+        win.runloop()
+
     def runloop(self):
         '''run the input loop
         Returns state change code
@@ -1534,6 +1555,89 @@ class HexWindow(textmode.Window):
 
             elif key == 'b':
                 self.move_word_back()
+
+            elif key == 'p':
+                self.print_value()
+
+
+
+class PrintValueBox(textmode.Alert):
+    '''print values for bytes'''
+
+    def __init__(self, data):
+        '''initialize'''
+
+        int8 = struct.unpack_from('@b', data)[0]
+        uint8 = struct.unpack_from('@B', data)[0]
+
+        # big endian
+        big_int16 = struct.unpack_from('>h', data)[0]
+        big_uint16 = struct.unpack_from('>H', data)[0]
+        big_int32 = struct.unpack_from('>i', data)[0]
+        big_uint32 = struct.unpack_from('>I', data)[0]
+        big_int64 = struct.unpack_from('>q', data)[0]
+        big_uint64 = struct.unpack_from('>Q', data)[0]
+        big_float32 = struct.unpack_from('>f', data)[0]
+        big_float64 = struct.unpack_from('>d', data)[0]
+
+        # little endian
+        int16 = struct.unpack_from('<h', data)[0]
+        uint16 = struct.unpack_from('<H', data)[0]
+        int32 = struct.unpack_from('<i', data)[0]
+        uint32 = struct.unpack_from('<I', data)[0]
+        int64 = struct.unpack_from('<q', data)[0]
+        uint64 = struct.unpack_from('<Q', data)[0]
+        float32 = struct.unpack_from('<f', data)[0]
+        float64 = struct.unpack_from('<d', data)[0]
+
+        text = '''bytes: %02X %02X %02X %02X %02X %02X %02X %02X
+Big endian
+   int8 : %-12d  uint8 : %-12d
+   int16: %-12d  uint16: %-12d
+   int32: %-12d  uint32: %-12d
+   int64: %-32d
+  uint64: %-32d
+ float32: %f
+ float64: %E
+
+Little endian
+   int8 : %-12d  uint8 : %-12d
+   int16: %-12d  uint16: %-12d
+   int32: %-12d  uint32: %-12d
+   int64: %-32d
+  uint64: %-32d
+ float32: %f
+ float64: %E''' % (data[0], data[1], data[2], data[3], data[4], data[5],
+                   data[6], data[7],
+                   int8, uint8, big_int16, big_uint16,
+                   big_int32, big_uint32, big_int64, big_uint64,
+                   big_float32, big_float64,
+                   int8, uint8, int16, uint16,
+                   int32, uint32, int64, uint64,
+                   float32, float64)
+
+        # show information in an alert box
+        colors = textmode.ColorSet(BLACK, WHITE)
+        colors.title = textmode.video_color(RED, WHITE)
+        colors.button = textmode.video_color(WHITE, BLUE, bold=True)
+        colors.buttonhotkey = textmode.video_color(YELLOW, BLUE, bold=True)
+        colors.activebutton = textmode.video_color(WHITE, GREEN, bold=True)
+        colors.activebuttonhotkey = textmode.video_color(YELLOW, GREEN,
+                                                         bold=True)
+        super(PrintValueBox, self).__init__(colors, 'Print', text,
+                                            center_text=False)
+
+    def draw(self):
+        '''draw box'''
+
+        super(PrintValueBox, self).draw()
+
+        # put some color into the headings
+        # (very hardcoded, very rigged)
+        textmode.VIDEO.color_hline(self.bounds.x + 1, self.bounds.y + 2,
+                                   10, self.colors.title)
+        textmode.VIDEO.color_hline(self.bounds.x + 1, self.bounds.y + 11,
+                                   13, self.colors.title)
 
 
 
@@ -1773,6 +1877,7 @@ Command keys
  1                    View single bytes
  2                    View 16-bit words
  4                    View 32-bit words
+ p                    Print value at cursor
  <                    Roll left
  >                    Roll right
  v                    Toggle selection mode
