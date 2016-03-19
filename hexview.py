@@ -847,10 +847,8 @@ class HexWindow(textmode.Window):
 
         elif (key == '2' and
                 self.mode & HexWindow.MODE_16BIT != HexWindow.MODE_16BIT):
-            debug('setting 16 bit mode')
             self.mode &= HexWindow.CLEAR_VIEWMODE
             self.mode |= HexWindow.MODE_16BIT
-            debug('mode == %d' % self.mode)
             update = True
 
         elif (key == '4' and
