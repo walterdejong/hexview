@@ -7,6 +7,7 @@
 
 '''hex file viewer'''
 
+import sys
 import curses
 import struct
 
@@ -150,6 +151,7 @@ class HexWindow(textmode.Window):
     MODE_32BIT = 4
     CLEAR_VIEWMODE = 0xffff & ~7
     MODE_SELECT = 8
+    MODE_VALUES = 0x10
 
     # search direction
     FORWARD = 0
@@ -158,16 +160,16 @@ class HexWindow(textmode.Window):
     def __init__(self, x, y, w, h, colors, title=None, border=True):
         '''initialize'''
 
-        super(HexWindow, self).__init__(x, y, w, h, colors, title, border)
-
+        # take off height for ValueSubWindow
+        h -= 6
         # turn off window shadow for HexWindow
         # because it clobbers the bottom statusbar
-        self.has_shadow = False
-
+        super(HexWindow, self).__init__(x, y, w, h, colors, title, border,
+                                        shadow=False)
         self.data = None
         self.address = 0
         self.cursor_x = self.cursor_y = 0
-        self.mode = HexWindow.MODE_8BIT
+        self.mode = HexWindow.MODE_8BIT | HexWindow.MODE_VALUES
         self.selection_start = self.selection_end = 0
         self.old_addr = self.old_x = self.old_y = 0
 
@@ -188,8 +190,16 @@ class HexWindow(textmode.Window):
         # so we can ignore focus events sometimes
         self.ignore_focus = False
 
+        colors = textmode.ColorSet(WHITE, BLACK)
+        colors.border = textmode.video_color(CYAN, BLACK)
+        colors.status = textmode.video_color(CYAN, BLACK)
+        self.valueview = ValueSubWindow(x, y + self.frame.h - 1, w, 7,
+                                        colors)
+
     def resize_event(self):
         '''the terminal was resized'''
+
+        # FIXME resizing ValueSubWindow
 
         # always keep same width, but height may vary
         x = self.frame.x
@@ -204,7 +214,10 @@ class HexWindow(textmode.Window):
             self.bounds = self.frame
 
         # rect is the outer area; larger because of shadow
-        self.rect = Rect(x, y, w + 2, h + 1)
+        if self.has_shadow:
+            self.rect = Rect(x, y, w + 2, h + 1)
+        else:
+            self.rect = Rect(x, y, w, h)
 
         if self.cursor_y >= self.bounds.h:
             self.cursor_y = self.bounds.h - 1
@@ -226,6 +239,14 @@ class HexWindow(textmode.Window):
         self.title = os.path.basename(filename)
         if len(self.title) > self.bounds.w:
             self.title = self.title[:self.bounds.w - 6] + '...'
+
+    def show(self):
+        '''open the window'''
+
+        if self.mode & HexWindow.MODE_VALUES:
+            self.valueview.show()
+
+        super(HexWindow, self).show()
 
     def close(self):
         '''close window'''
@@ -497,6 +518,8 @@ class HexWindow(textmode.Window):
             ch = ord(' ')
         self.draw_ascii_cursor(ch, color, clear)
 
+        self.update_values()
+
     def draw_ascii_cursor(self, ch, color, clear):
         '''draw ascii cursor'''
 
@@ -614,6 +637,27 @@ class HexWindow(textmode.Window):
             textmode.VIDEO.color_hline(self.bounds.x + 10,
                                        self.bounds.y + endy, endx,
                                        self.colors.cursor)
+
+    def update_values(self):
+        '''update value view'''
+
+        if not self.mode & HexWindow.MODE_VALUES:
+            return
+
+        # get data at cursor
+        offset = self.address + self.cursor_y * 16 + self.cursor_x
+        try:
+            data = self.data[offset:offset + 8]
+        except IndexError:
+            # get data, do zero padding
+            data = bytearray(8)
+            for i in xrange(0, 8):
+                try:
+                    data[i] = self.data[offset + i]
+                except IndexError:
+                    break
+
+        self.valueview.update(data)
 
     def mark_address(self, y, color=-1):
         '''only used to draw a marked address
@@ -1437,25 +1481,52 @@ class HexWindow(textmode.Window):
         win.show()
         win.runloop()
 
-    def print_value(self):
-        '''print value at cursor'''
+    def print_values(self):
+        '''toggle values subwindow'''
 
-        offset = self.address + self.cursor_y * 16 + self.cursor_x
-        try:
-            data = self.data[offset:offset + 8]
-        except IndexError:
-            # get data, do zero padding
-            data = bytearray(8)
-            for i in xrange(0, 8):
-                try:
-                    data[i] = self.data[offset + i]
-                except IndexError:
-                    break
+        self.mode ^= HexWindow.MODE_VALUES
+        if self.mode & HexWindow.MODE_VALUES:
+            self.shrink_window(self.valueview.frame.h - 1)
+            self.valueview.show()
+        else:
+            self.valueview.hide()
+            self.expand_window(self.valueview.frame.h - 1)
 
-        win = PrintValueBox(data)
+        self.draw()
+        self.draw_cursor()
+        self.update_values()
 
-        win.show()
-        win.runloop()
+    def shrink_window(self, lines):
+        '''shrink main window by n lines'''
+
+        self.hide()
+        self.frame.h -= lines
+        self.bounds.h -= lines
+        self.rect.h -= lines
+        self.show()
+
+        if self.cursor_y > self.bounds.h - 1:
+            self.cursor_y = self.bounds.h - 1
+
+    def expand_window(self, lines):
+        '''grow main window by n lines'''
+
+        self.hide()
+        self.frame.h += lines
+        self.bounds.h += lines
+        self.rect.h += lines
+        self.show()
+
+    def toggle_endianness(self):
+        '''toggle endianness in values subwindow'''
+
+        if self.valueview.endian == ValueSubWindow.BIG_ENDIAN:
+            self.valueview.endian = ValueSubWindow.LITTLE_ENDIAN
+        else:
+            self.valueview.endian = ValueSubWindow.BIG_ENDIAN
+
+        self.update_values()
+        self.valueview.update_status()
 
     def runloop(self):
         '''run the input loop
@@ -1567,86 +1638,94 @@ class HexWindow(textmode.Window):
                 self.move_word_back()
 
             elif key == 'p':
-                self.print_value()
+                self.print_values()
+
+            elif key == 'P':
+                self.toggle_endianness()
 
 
 
-class PrintValueBox(textmode.Alert):
-    '''print values for bytes'''
+class ValueSubWindow(textmode.Window):
+    '''subwindow that shows values'''
 
-    def __init__(self, data):
+    BIG_ENDIAN = 1
+    LITTLE_ENDIAN = 2
+
+    def __init__(self, x, y, w, h, colors):
         '''initialize'''
+
+        super(ValueSubWindow, self).__init__(x, y, w, h, colors, 'Values',
+                                             border=True, shadow=False)
+        if sys.byteorder == 'big':
+            self.endian = ValueSubWindow.BIG_ENDIAN
+        else:
+            self.endian = ValueSubWindow.LITTLE_ENDIAN
+
+    def draw(self):
+        '''draw the value subwindow'''
+
+        super(ValueSubWindow, self).draw()
+
+        # draw statusline
+        self.update_status()
+
+    def update(self, data):
+        '''show the values for data'''
 
         int8 = struct.unpack_from('@b', data)[0]
         uint8 = struct.unpack_from('@B', data)[0]
 
-        # big endian
-        big_int16 = struct.unpack_from('>h', data)[0]
-        big_uint16 = struct.unpack_from('>H', data)[0]
-        big_int32 = struct.unpack_from('>i', data)[0]
-        big_uint32 = struct.unpack_from('>I', data)[0]
-        big_int64 = struct.unpack_from('>q', data)[0]
-        big_uint64 = struct.unpack_from('>Q', data)[0]
-        big_float32 = struct.unpack_from('>f', data)[0]
-        big_float64 = struct.unpack_from('>d', data)[0]
+        if self.endian == ValueSubWindow.BIG_ENDIAN:
+            format = '>'
+        elif self.endian == ValueSubWindow.LITTLE_ENDIAN:
+            format = '<'
+        else:
+            format = '='
 
-        # little endian
-        int16 = struct.unpack_from('<h', data)[0]
-        uint16 = struct.unpack_from('<H', data)[0]
-        int32 = struct.unpack_from('<i', data)[0]
-        uint32 = struct.unpack_from('<I', data)[0]
-        int64 = struct.unpack_from('<q', data)[0]
-        uint64 = struct.unpack_from('<Q', data)[0]
-        float32 = struct.unpack_from('<f', data)[0]
-        float64 = struct.unpack_from('<d', data)[0]
+        int16 = struct.unpack_from(format + 'h', data)[0]
+        uint16 = struct.unpack_from(format + 'H', data)[0]
+        int32 = struct.unpack_from(format + 'i', data)[0]
+        uint32 = struct.unpack_from(format + 'I', data)[0]
+        int64 = struct.unpack_from(format + 'q', data)[0]
+        uint64 = struct.unpack_from(format + 'Q', data)[0]
+        float32 = struct.unpack_from(format + 'f', data)[0]
+        float64 = struct.unpack_from(format + 'd', data)[0]
 
-        text = ('''bytes: %02X %02X %02X %02X %02X %02X %02X %02X
-Big endian
-   int8 : %-12d  uint8 : %-12d
-   int16: %-12d  uint16: %-12d
-   int32: %-12d  uint32: %-12d
-   int64: %-32d
-  uint64: %-32d
- float32: %-12g  float64: %g
+        line = ' int8 : %-20d  uint8 : %-20d  0x%02x' % (int8, uint8, uint8)
+        self.puts(0, 0, line, self.colors.text)
 
-Little endian
-   int8 : %-12d  uint8 : %-12d
-   int16: %-12d  uint16: %-12d
-   int32: %-12d  uint32: %-12d
-   int64: %-32d
-  uint64: %-32d
- float32: %-12g float64: %g''' %
-                (data[0], data[1], data[2], data[3], data[4], data[5],
-                 data[6], data[7],
-                 int8, uint8, big_int16, big_uint16,
-                 big_int32, big_uint32, big_int64, big_uint64,
-                 big_float32, big_float64,
-                 int8, uint8, int16, uint16,
-                 int32, uint32, int64, uint64,
-                 float32, float64))
+        line = ' int16: %-20d  uint16: %-20d  0x%04x' % (int16, uint16,
+                                                         uint16)
+        self.puts(0, 1, line, self.colors.text)
 
-        # show information in an alert box
-        colors = textmode.ColorSet(BLACK, WHITE)
-        colors.title = textmode.video_color(RED, WHITE)
-        colors.button = textmode.video_color(WHITE, BLUE, bold=True)
-        colors.buttonhotkey = textmode.video_color(YELLOW, BLUE, bold=True)
-        colors.activebutton = textmode.video_color(WHITE, GREEN, bold=True)
-        colors.activebuttonhotkey = textmode.video_color(YELLOW, GREEN,
-                                                         bold=True)
-        super(PrintValueBox, self).__init__(colors, 'Print', text,
-                                            center_text=False)
+        line = ' int32: %-20d  uint32: %-20d  0x%08x' % (int32, uint32,
+                                                         uint32)
+        self.puts(0, 2, line, self.colors.text)
 
-    def draw(self):
-        '''draw box'''
+        line = ' int64: %-20d  uint64: %-20u  0x%016x' % (int64, uint64,
+                                                          uint64)
+        self.puts(0, 3, line, self.colors.text)
 
-        super(PrintValueBox, self).draw()
+        line = ' float: %-20g  double: %-20g  0x%016x' % (float32, float64,
+                                                          uint64)
+        self.puts(0, 4, line, self.colors.text)
 
-        # put some color into the headings
-        # (very hardcoded, very rigged)
-        textmode.VIDEO.color_hline(self.bounds.x + 1, self.bounds.y + 2,
-                                   10, self.colors.title)
-        textmode.VIDEO.color_hline(self.bounds.x + 1, self.bounds.y + 10,
-                                   13, self.colors.title)
+    def update_status(self):
+        '''redraw statusline'''
+
+        if self.endian == ValueSubWindow.BIG_ENDIAN:
+            text = ' big endian '
+        else:
+            text = ' little endian '
+
+        w = len(text)
+
+        textmode.VIDEO.hline(self.frame.x + self.frame.w - 20,
+                             self.frame.y + self.frame.h - 1, 18,
+                             curses.ACS_HLINE, self.colors.border)
+        textmode.VIDEO.puts(self.frame.x + self.frame.w - w - 1,
+                            self.frame.y + self.frame.h - 1, text,
+                            self.colors.status)
 
 
 
@@ -1886,7 +1965,8 @@ Command keys
  1                    View single bytes
  2                    View 16-bit words
  4                    View 32-bit words
- p                    Print value at cursor
+ p                    Toggle printed values
+ P                    Toggle endianness
  <                    Roll left
  >                    Roll right
  v                    Toggle selection mode
@@ -1918,11 +1998,11 @@ Command keys
         colors.cursor = textmode.video_color(BLACK, GREEN)
 
         w = 52
-        h = self.parent.frame.h - 6
+        h = textmode.VIDEO.h - 6
         if h < 4:
             h = 4
         x = textmode.center_x(w, self.parent.frame.w)
-        y = textmode.center_y(h, self.parent.frame.h)
+        y = textmode.center_y(h, textmode.VIDEO.h)
 
         super(HelpWindow, self).__init__(x, y, w, h, colors, title='Help',
                                          border=True, text=text.split('\n'),
@@ -1931,15 +2011,12 @@ Command keys
     def resize_event(self):
         '''the terminal was resized'''
 
-        # Note: this works alright because the HelpWindow
-        # is always on top of its parent window ...
-
         w = self.frame.w
-        h = self.parent.frame.h - 6
+        h = textmode.VIDEO.h - 6
         if h < 4:
             h = 4
         x = textmode.center_x(w, self.parent.frame.w)
-        y = textmode.center_y(h, self.parent.frame.h)
+        y = textmode.center_y(h, textmode.VIDEO.h)
 
         self.frame = Rect(x, y, w, h)
 
@@ -1950,7 +2027,10 @@ Command keys
             self.bounds = self.frame
 
         # rect is the outer area; larger because of shadow
-        self.rect = Rect(x, y, w + 2, h + 1)
+        if self.has_shadow:
+            self.rect = Rect(x, y, w + 2, h + 1)
+        else:
+            self.rect = Rect(x, y, w, h)
 
         if self.cursor >= self.bounds.h:
             self.cursor = self.bounds.h - 1
