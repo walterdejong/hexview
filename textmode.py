@@ -36,6 +36,8 @@ BOLD = 8
 CURSES_COLORS = None
 CURSES_COLORPAIRS = {}
 CURSES_COLORPAIR_IDX = 0
+# terminal can do color at all
+HAS_COLORS = False
 
 # curses key codes get translated to strings by getch()
 # There is no support for F-keys! Functions keys are evil on Macs
@@ -2527,6 +2529,9 @@ def curses_color(fg, bg=None, bold=False):
 
     global CURSES_COLORPAIR_IDX
 
+    if not HAS_COLORS:
+        return 0
+
     if bg is None:
         # passed in only a combined color code
         color = fg
@@ -2634,13 +2639,15 @@ def center_y(height, area=0):
 def init_curses():
     '''initialize curses'''
 
-    global STDSCR, CURSES_COLORS
+    global STDSCR, CURSES_COLORS, HAS_COLORS
 
     os.environ['ESCDELAY'] = '25'
 
     STDSCR = curses.initscr()
     curses.savetty()
-    curses.start_color()
+    HAS_COLORS = curses.has_colors()
+    if HAS_COLORS:
+        curses.start_color()
     curses.noecho()
     STDSCR.keypad(1)
     curses.raw()
