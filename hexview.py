@@ -754,6 +754,17 @@ class HexWindow(textmode.Window):
                                        self.bounds.y + endy, endx,
                                        self.colors.cursor)
 
+    def mark_address(self, y, color=-1):
+        '''only used to draw a marked address
+        Marked addresses are copied into the jumpaddr history
+        '''
+
+        if color == -1:
+            color = textmode.video_color(WHITE, RED, bold=True)
+
+        textmode.VIDEO.color_hline(self.bounds.x, self.bounds.y + y, 8,
+                                   color)
+
     def scroll_up(self, nlines=1):
         '''scroll nlines up'''
 
@@ -1378,7 +1389,7 @@ class HexWindow(textmode.Window):
 
         # give visual feedback
         color = textmode.video_color(WHITE, RED, bold=True)
-        self.draw_address(self.cursor_y, mark=color)
+        self.mark_address(self.cursor_y, color)
         self.draw_cursor(mark=color)
 
     def move_begin_line(self):
