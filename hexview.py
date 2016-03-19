@@ -161,6 +161,10 @@ class HexWindow(textmode.Window):
 
         super(HexWindow, self).__init__(x, y, w, h, colors, title, border)
 
+        # turn off window shadow for HexWindow
+        # because it clobbers the bottom statusbar
+        self.has_shadow = False
+
         self.data = None
         self.address = 0
         self.cursor_x = self.cursor_y = 0

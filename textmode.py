@@ -773,6 +773,7 @@ class Window(object):
         self.colors = colors
         self.title = title
         self.has_border = border
+        self.has_shadow = True
 
         # bounds is the inner area; for view content
         if border:
@@ -911,6 +912,9 @@ class Window(object):
 
     def draw_shadow(self):
         '''draw shadow for frame rect'''
+
+        if not self.has_shadow:
+            return
 
         if not self.flags & Window.SHOWN:
             return
