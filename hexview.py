@@ -740,14 +740,7 @@ class HexWindow(textmode.Window):
     def roll_right(self):
         '''move right by one byte'''
 
-        # FIXME this is not entirely correct
-        # round up to nearest 16
-        num = len(self.data)
-        remainder = num % 16
-        if remainder > 0:
-            num += 16 - remainder
-
-        top = num - self.bounds.h * 16
+        top = len(self.data) - self.bounds.h * 16
         if self.address < top:
             self.address += 1
             self.draw()
