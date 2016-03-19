@@ -7,9 +7,11 @@
 
 '''hex file viewer'''
 
+import os
 import sys
 import curses
 import struct
+import getopt
 
 import textmode
 
@@ -1441,13 +1443,17 @@ class HexWindow(textmode.Window):
             return 0
 
         cmd = self.cmdline.textfield.text
+        if ' ' in cmd:
+            cmd, arg = cmd.split(' ', 1)
+        else:
+            arg = None
         if not cmd:
             return 0
 
         elif cmd == 'help' or cmd == '?':
             self.show_help()
 
-        elif cmd == 'about':
+        elif cmd in ('about', 'version'):
             self.show_about()
 
         elif cmd in ('q', 'q!', 'quit'):
@@ -1455,6 +1461,18 @@ class HexWindow(textmode.Window):
 
         elif cmd in ('wq', 'wq!', 'ZZ', 'exit'):
             return textmode.EXIT
+
+        elif cmd == 'load':
+            self.loadfile(arg)
+
+        elif cmd in ('print', 'values'):
+            self.print_values()
+
+        elif cmd == 'big':
+            self.set_big_endian()
+
+        elif cmd == 'little':
+            self.set_little_endian()
 
         elif cmd == '0':
             self.move_home()
@@ -1468,6 +1486,29 @@ class HexWindow(textmode.Window):
             self.cmdline.hide()
 
         return 0
+
+    def loadfile(self, filename):
+        '''load file'''
+
+        if not filename:
+            return
+
+        if filename[0] == '~':
+            filename = os.path.expanduser(filename)
+        if '$' in filename:
+            filename = os.path.expandvars(filename)
+        try:
+            self.load(filename)
+        except (OSError, IOError) as err:
+            self.ignore_focus = True
+            self.cmdline.show()
+            self.cmdline.cputs(0, 0, err.strerror,
+                               textmode.video_color(WHITE, RED, bold=True))
+            getch()
+            self.cmdline.hide()
+        else:
+            self.draw()
+            self.draw_cursor()
 
     def show_help(self):
         '''show help window'''
@@ -1530,6 +1571,22 @@ class HexWindow(textmode.Window):
 
         self.update_values()
         self.valueview.update_status()
+
+    def set_big_endian(self):
+        '''set big endian mode'''
+
+        if self.valueview.endian != ValueSubWindow.BIG_ENDIAN:
+            self.valueview.endian = ValueSubWindow.BIG_ENDIAN
+            self.update_values()
+            self.valueview.update_status()
+
+    def set_little_endian(self):
+        '''set little endian mode'''
+
+        if self.valueview.endian != ValueSubWindow.LITTLE_ENDIAN:
+            self.valueview.endian = ValueSubWindow.LITTLE_ENDIAN
+            self.update_values()
+            self.valueview.update_status()
 
     def runloop(self):
         '''run the input loop
@@ -1965,14 +2022,7 @@ class HelpWindow(textmode.TextWindow):
 
         self.parent = parent
 
-        text = '''Commands
- :help    :?          Show this information
- :about               Show About box
- :q       :q!         Quit
-
- :0                   Go to top
-
-Command keys
+        text = '''Command keys
  :                    Enter command mode
  /        Ctrl-F      Find
  ?                    Find backwards
@@ -2008,7 +2058,17 @@ Command keys
  b                    Go to previous ASCII word
 
  Ctrl-R               Redraw screen
- Ctrl-Q               Force quit'''
+ Ctrl-Q               Force quit
+ 
+Commands
+ :0                   Go to top
+ :print   :values     Toggle printed values
+ :big                 Set big endian mode
+ :little              Set little endian mode
+ :load FILENAME       Load alternate file
+ :help    :?          Show this information
+ :about   :version    Show About box
+ :q       :q!         Quit'''
 
         colors = textmode.ColorSet(BLACK, WHITE)
         colors.title = textmode.video_color(RED, WHITE)
@@ -2125,7 +2185,7 @@ Walter de Jong <walter@heiho.net>''' % ('-' * len(VERSION), VERSION)
 
 
 
-def hexview_main():
+def hexview_main(filename):
     '''main program'''
 
     colors = textmode.ColorSet(BLACK, CYAN)
@@ -2134,7 +2194,13 @@ def hexview_main():
     colors.invisibles = textmode.video_color(BLUE, CYAN, bold=True)
 
     view = HexWindow(0, 0, 80, textmode.VIDEO.h - 1, colors)
-    view.load(sys.argv[1])
+    try:
+        view.load(filename)
+    except (OSError, IOError) as err:
+        textmode.terminate()
+        print '%s: %s' % (filename, err.strerror)
+        sys.exit(-1)
+
     view.show()
 
     textmode.VIDEO.puts(0, textmode.VIDEO.h - 1,
@@ -2143,19 +2209,46 @@ def hexview_main():
     view.runloop()
 
 
+def short_usage():
+    '''print short usage information and exit'''
+
+    print 'usage: %s <filename>' % os.path.basename(sys.argv[0])
+    sys.exit(1)
+
+
+def usage():
+    '''print usage information and exit'''
+
+    short_usage()
+
+
+def get_options():
+    '''parse command line options'''
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'h', ['help',])
+    except getopt.GetoptError:
+        short_usage()
+
+    for opt in opts:
+        if opt in ('-h', '--help'):
+            usage()
+
+    if not args:
+        short_usage()
+
+    # return just one filename
+    return args[0]
+
+
 
 if __name__ == '__main__':
-    import os
-    import sys
-
-    if len(sys.argv) <= 1:
-        print 'usage: %s <filename>' % os.path.basename(sys.argv[0])
-        sys.exit(1)
+    filename = get_options()
 
     textmode.init()
 
     try:
-        hexview_main()
+        hexview_main(filename)
     finally:
         textmode.terminate()
 
