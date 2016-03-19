@@ -1600,15 +1600,14 @@ class PrintValueBox(textmode.Alert):
         float32 = struct.unpack_from('<f', data)[0]
         float64 = struct.unpack_from('<d', data)[0]
 
-        text = '''bytes: %02X %02X %02X %02X %02X %02X %02X %02X
+        text = ('''bytes: %02X %02X %02X %02X %02X %02X %02X %02X
 Big endian
    int8 : %-12d  uint8 : %-12d
    int16: %-12d  uint16: %-12d
    int32: %-12d  uint32: %-12d
    int64: %-32d
   uint64: %-32d
- float32: %g
- float64: %g
+ float32: %-12g  float64: %g
 
 Little endian
    int8 : %-12d  uint8 : %-12d
@@ -1616,15 +1615,15 @@ Little endian
    int32: %-12d  uint32: %-12d
    int64: %-32d
   uint64: %-32d
- float32: %g
- float64: %g''' % (data[0], data[1], data[2], data[3], data[4], data[5],
-                   data[6], data[7],
-                   int8, uint8, big_int16, big_uint16,
-                   big_int32, big_uint32, big_int64, big_uint64,
-                   big_float32, big_float64,
-                   int8, uint8, int16, uint16,
-                   int32, uint32, int64, uint64,
-                   float32, float64)
+ float32: %-12g float64: %g''' %
+                (data[0], data[1], data[2], data[3], data[4], data[5],
+                 data[6], data[7],
+                 int8, uint8, big_int16, big_uint16,
+                 big_int32, big_uint32, big_int64, big_uint64,
+                 big_float32, big_float64,
+                 int8, uint8, int16, uint16,
+                 int32, uint32, int64, uint64,
+                 float32, float64))
 
         # show information in an alert box
         colors = textmode.ColorSet(BLACK, WHITE)
@@ -1646,7 +1645,7 @@ Little endian
         # (very hardcoded, very rigged)
         textmode.VIDEO.color_hline(self.bounds.x + 1, self.bounds.y + 2,
                                    10, self.colors.title)
-        textmode.VIDEO.color_hline(self.bounds.x + 1, self.bounds.y + 11,
+        textmode.VIDEO.color_hline(self.bounds.x + 1, self.bounds.y + 10,
                                    13, self.colors.title)
 
 
