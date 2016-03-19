@@ -292,6 +292,11 @@ class Rect(object):
 
         return '{%d, %d, %d, %d}' % (self.x, self.y, self.w, self.h)
 
+    def copy(self):
+        '''Returns a copy'''
+
+        return Rect(self.x, self.y, self.w, self.h)
+
     def clamp(self, x, y):
         '''Returns clamped tuple: x, y'''
 
@@ -780,13 +785,14 @@ class Window(object):
         if border:
             self.bounds = Rect(x + 1, y + 1, w - 2, h - 2)
         else:
-            self.bounds = self.frame
+            self.bounds = self.frame.copy()
 
         # rect is the outer area; larger because of shadow
         if self.has_shadow:
             self.rect = Rect(x, y, w + 2, h + 1)
         else:
-            self.rect = Rect(x, y, w, h)
+            self.rect = self.frame.copy()
+
         self.background = None
         self.flags = 0
 
@@ -1661,10 +1667,13 @@ class Alert(Window):
         if self.has_border:
             self.bounds = Rect(x + 1, y + 1, w - 2, h - 2)
         else:
-            self.bounds = self.frame
+            self.bounds = self.frame.copy()
 
         # rect is the outer area; larger because of shadow
-        self.rect = Rect(x, y, w + 2, h + 1)
+        if self.has_shadow:
+            self.rect = Rect(x, y, w + 2, h + 1)
+        else:
+            self.rect = self.frame.copy()
 
     def draw(self):
         '''draw the alert box'''
