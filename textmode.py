@@ -766,14 +766,15 @@ class Window(object):
     SHOWN = 2
     FOCUS = 4
 
-    def __init__(self, x, y, w, h, colors, title=None, border=True):
+    def __init__(self, x, y, w, h, colors, title=None, border=True,
+                 shadow=True):
         '''initialize'''
 
         self.frame = Rect(x, y, w, h)
         self.colors = colors
         self.title = title
         self.has_border = border
-        self.has_shadow = True
+        self.has_shadow = shadow
 
         # bounds is the inner area; for view content
         if border:
@@ -782,7 +783,10 @@ class Window(object):
             self.bounds = self.frame
 
         # rect is the outer area; larger because of shadow
-        self.rect = Rect(x, y, w + 2, h + 1)
+        if self.has_shadow:
+            self.rect = Rect(x, y, w + 2, h + 1)
+        else:
+            self.rect = Rect(x, y, w, h)
         self.background = None
         self.flags = 0
 
