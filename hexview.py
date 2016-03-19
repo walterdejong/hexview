@@ -1607,8 +1607,8 @@ Big endian
    int32: %-12d  uint32: %-12d
    int64: %-32d
   uint64: %-32d
- float32: %f
- float64: %E
+ float32: %g
+ float64: %g
 
 Little endian
    int8 : %-12d  uint8 : %-12d
@@ -1616,8 +1616,8 @@ Little endian
    int32: %-12d  uint32: %-12d
    int64: %-32d
   uint64: %-32d
- float32: %f
- float64: %E''' % (data[0], data[1], data[2], data[3], data[4], data[5],
+ float32: %g
+ float64: %g''' % (data[0], data[1], data[2], data[3], data[4], data[5],
                    data[6], data[7],
                    int8, uint8, big_int16, big_uint16,
                    big_int32, big_uint32, big_int64, big_uint64,
