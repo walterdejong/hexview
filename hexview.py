@@ -293,24 +293,33 @@ class HexWindow(textmode.Window):
             offset = self.address + y * 16
             line = '%08X  ' % offset
 
-            # FIXME can we do this without try:except: ?
-
             # bytes (left block)
-            for i in xrange(0, 8):
-                try:
-                    line += '%02X ' % self.data[offset + i]
-                except IndexError:
-                    line += '   '
+            try:
+                # try fast(er) implementation
+                line += (('%02X %02X %02X %02X %02X %02X %02X %02X  '
+                          '%02X %02X %02X %02X %02X %02X %02X %02X') %
+                          (self.data[offset], self.data[offset + 1],
+                           self.data[offset + 2], self.data[offset + 3],
+                           self.data[offset + 4], self.data[offset + 5],
+                           self.data[offset + 6], self.data[offset + 7],
+                           self.data[offset + 8], self.data[offset + 9],
+                           self.data[offset + 10], self.data[offset + 11],
+                           self.data[offset + 12], self.data[offset + 13],
+                           self.data[offset + 14], self.data[offset + 15]))
+            except IndexError:
+                # do the slower version
+                for i in xrange(0, 8):
+                    try:
+                        line += '%02X ' % self.data[offset + i]
+                    except IndexError:
+                        line += '   '
+                line += ' '
+                for i in xrange(8, 16):
+                    try:
+                        line += '%02X ' % self.data[offset + i]
+                    except IndexError:
+                        line += '   '
 
-            line += ' '
-            # bytes (right block)
-            for i in xrange(8, 16):
-                try:
-                    line += '%02X ' % self.data[offset + i]
-                except IndexError:
-                    line += '   '
-
-            line += ' '
             self.puts(0, y, line, self.colors.text)
 
             self.draw_ascii(y)
@@ -326,32 +335,45 @@ class HexWindow(textmode.Window):
             line = '%08X  ' % offset
 
             # left block
-            for i in xrange(0, 4):
-                try:
-                    line += '%02X' % self.data[offset + i * 2]
-                except IndexError:
+            try:
+                # try fast(er) implementation
+                line += (('%02X%02X  %02X%02X  %02X%02X  %02X%02X   '
+                          '%02X%02X  %02X%02X  %02X%02X  %02X%02X') %
+                          (self.data[offset], self.data[offset + 1],
+                           self.data[offset + 2], self.data[offset + 3],
+                           self.data[offset + 4], self.data[offset + 5],
+                           self.data[offset + 6], self.data[offset + 7],
+                           self.data[offset + 8], self.data[offset + 9],
+                           self.data[offset + 10], self.data[offset + 11],
+                           self.data[offset + 12], self.data[offset + 13],
+                           self.data[offset + 14], self.data[offset + 15]))
+            except IndexError:
+                # do the slower version
+                for i in xrange(0, 4):
+                    try:
+                        line += '%02X' % self.data[offset + i * 2]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 2 + 1]
+                    except IndexError:
+                        line += '  '
                     line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 2 + 1]
-                except IndexError:
-                    line += '  '
-                line += '  '
 
-            offset += 8
-            line += ' '
-            # right block
-            for i in xrange(0, 4):
-                try:
-                    line += '%02X' % self.data[offset + i * 2]
-                except IndexError:
+                offset += 8
+                line += ' '
+                # right block
+                for i in xrange(0, 4):
+                    try:
+                        line += '%02X' % self.data[offset + i * 2]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 2 + 1]
+                    except IndexError:
+                        line += '  '
                     line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 2 + 1]
-                except IndexError:
-                    line += '  '
-                line += '  '
 
-            line += ' '
             self.puts(0, y, line, self.colors.text)
 
             self.draw_ascii(y)
@@ -367,32 +389,45 @@ class HexWindow(textmode.Window):
             line = '%08X  ' % offset
 
             # left block
-            for i in xrange(0, 4):
-                try:
-                    line += '%02X' % self.data[offset + i * 2 + 1]
-                except IndexError:
+            try:
+                # try fast(er) implementation
+                line += (('%02X%02X  %02X%02X  %02X%02X  %02X%02X   '
+                          '%02X%02X  %02X%02X  %02X%02X  %02X%02X') %
+                          (self.data[offset + 1], self.data[offset],
+                           self.data[offset + 3], self.data[offset + 2],
+                           self.data[offset + 5], self.data[offset + 4],
+                           self.data[offset + 7], self.data[offset + 6],
+                           self.data[offset + 9], self.data[offset + 8],
+                           self.data[offset + 11], self.data[offset + 10],
+                           self.data[offset + 13], self.data[offset + 12],
+                           self.data[offset + 15], self.data[offset + 14]))
+            except IndexError:
+                # do the slower version
+                for i in xrange(0, 4):
+                    try:
+                        line += '%02X' % self.data[offset + i * 2 + 1]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 2]
+                    except IndexError:
+                        line += '  '
                     line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 2]
-                except IndexError:
-                    line += '  '
-                line += '  '
 
-            offset += 8
-            line += ' '
-            # right block
-            for i in xrange(0, 4):
-                try:
-                    line += '%02X' % self.data[offset + i * 2 + 1]
-                except IndexError:
+                offset += 8
+                line += ' '
+                # right block
+                for i in xrange(0, 4):
+                    try:
+                        line += '%02X' % self.data[offset + i * 2 + 1]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 2]
+                    except IndexError:
+                        line += '  '
                     line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 2]
-                except IndexError:
-                    line += '  '
-                line += '  '
 
-            line += ' '
             self.puts(0, y, line, self.colors.text)
 
             self.draw_ascii(y)
@@ -408,48 +443,61 @@ class HexWindow(textmode.Window):
             line = '%08X  ' % offset
 
             # left block
-            for i in xrange(0, 2):
-                try:
-                    line += '%02X' % self.data[offset + i * 4]
-                except IndexError:
-                    line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 4 + 1]
-                except IndexError:
-                    line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 4 + 2]
-                except IndexError:
-                    line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 4 + 3]
-                except IndexError:
-                    line += '  '
-                line += '    '
+            try:
+                # try fast(er) implementation
+                line += (('%02X%02X%02X%02X    %02X%02X%02X%02X     '
+                          '%02X%02X%02X%02X    %02X%02X%02X%02X') %
+                          (self.data[offset], self.data[offset + 1],
+                           self.data[offset + 2], self.data[offset + 3],
+                           self.data[offset + 4], self.data[offset + 5],
+                           self.data[offset + 6], self.data[offset + 7],
+                           self.data[offset + 8], self.data[offset + 9],
+                           self.data[offset + 10], self.data[offset + 11],
+                           self.data[offset + 12], self.data[offset + 13],
+                           self.data[offset + 14], self.data[offset + 15]))
+            except IndexError:
+                # do the slower version
+                for i in xrange(0, 2):
+                    try:
+                        line += '%02X' % self.data[offset + i * 4]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 4 + 1]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 4 + 2]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 4 + 3]
+                    except IndexError:
+                        line += '  '
+                    line += '    '
 
-            offset += 8
-            line += ' '
-            # right block
-            for i in xrange(0, 2):
-                try:
-                    line += '%02X' % self.data[offset + i * 4]
-                except IndexError:
-                    line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 4 + 1]
-                except IndexError:
-                    line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 4 + 2]
-                except IndexError:
-                    line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 4 + 3]
-                except IndexError:
-                    line += '  '
-                line += '    '
+                offset += 8
+                line += ' '
+                # right block
+                for i in xrange(0, 2):
+                    try:
+                        line += '%02X' % self.data[offset + i * 4]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 4 + 1]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 4 + 2]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 4 + 3]
+                    except IndexError:
+                        line += '  '
+                    line += '    '
 
-            line += ' '
             self.puts(0, y, line, self.colors.text)
 
             self.draw_ascii(y)
@@ -465,48 +513,61 @@ class HexWindow(textmode.Window):
             line = '%08X  ' % offset
 
             # left block
-            for i in xrange(0, 2):
-                try:
-                    line += '%02X' % self.data[offset + i * 4 + 3]
-                except IndexError:
-                    line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 4 + 2]
-                except IndexError:
-                    line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 4 + 1]
-                except IndexError:
-                    line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 4]
-                except IndexError:
-                    line += '  '
-                line += '    '
+            try:
+                # try fast(er) implementation
+                line += (('%02X%02X%02X%02X    %02X%02X%02X%02X     '
+                          '%02X%02X%02X%02X    %02X%02X%02X%02X') %
+                          (self.data[offset + 1], self.data[offset],
+                           self.data[offset + 3], self.data[offset + 2],
+                           self.data[offset + 5], self.data[offset + 4],
+                           self.data[offset + 7], self.data[offset + 6],
+                           self.data[offset + 9], self.data[offset + 8],
+                           self.data[offset + 11], self.data[offset + 10],
+                           self.data[offset + 13], self.data[offset + 12],
+                           self.data[offset + 15], self.data[offset + 14]))
+            except IndexError:
+                # do the slower version
+                for i in xrange(0, 2):
+                    try:
+                        line += '%02X' % self.data[offset + i * 4 + 3]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 4 + 2]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 4 + 1]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 4]
+                    except IndexError:
+                        line += '  '
+                    line += '    '
 
-            offset += 8
-            line += ' '
-            # right block
-            for i in xrange(0, 2):
-                try:
-                    line += '%02X' % self.data[offset + i * 4 + 3]
-                except IndexError:
-                    line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 4 + 2]
-                except IndexError:
-                    line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 4 + 1]
-                except IndexError:
-                    line += '  '
-                try:
-                    line += '%02X' % self.data[offset + i * 4]
-                except IndexError:
-                    line += '  '
-                line += '    '
+                offset += 8
+                line += ' '
+                # right block
+                for i in xrange(0, 2):
+                    try:
+                        line += '%02X' % self.data[offset + i * 4 + 3]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 4 + 2]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 4 + 1]
+                    except IndexError:
+                        line += '  '
+                    try:
+                        line += '%02X' % self.data[offset + i * 4]
+                    except IndexError:
+                        line += '  '
+                    line += '    '
 
-            line += ' '
             self.puts(0, y, line, self.colors.text)
 
             self.draw_ascii(y)
@@ -768,6 +829,7 @@ class HexWindow(textmode.Window):
     def roll_right(self):
         '''move right by one byte'''
 
+        # FIXME this is not entirely correct
         # round up to nearest 16
         num = len(self.data)
         remainder = num % 16
