@@ -2212,7 +2212,7 @@ def hexview_main(filename):
 def short_usage():
     '''print short usage information and exit'''
 
-    print 'usage: %s <filename>' % os.path.basename(sys.argv[0])
+    print 'usage: %s [--no-color] <filename>' % os.path.basename(sys.argv[0])
     sys.exit(1)
 
 
@@ -2226,13 +2226,16 @@ def get_options():
     '''parse command line options'''
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'h', ['help',])
+        opts, args = getopt.getopt(sys.argv[1:], 'h', ['help', 'no-color'])
     except getopt.GetoptError:
         short_usage()
 
-    for opt in opts:
+    for opt, _ in opts:
         if opt in ('-h', '--help'):
             usage()
+
+        elif opt == '--no-color':
+            textmode.WANT_COLORS = False
 
     if not args:
         short_usage()

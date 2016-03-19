@@ -36,6 +36,8 @@ BOLD = 8
 CURSES_COLORS = None
 CURSES_COLORPAIRS = {}
 CURSES_COLORPAIR_IDX = 0
+# user wants colors
+WANT_COLORS = True
 # terminal can do color at all
 HAS_COLORS = False
 
@@ -2645,9 +2647,15 @@ def init_curses():
 
     STDSCR = curses.initscr()
     curses.savetty()
-    HAS_COLORS = curses.has_colors()
+
+    if WANT_COLORS:
+        HAS_COLORS = curses.has_colors()
+    else:
+        HAS_COLORS = False
+
     if HAS_COLORS:
         curses.start_color()
+
     curses.noecho()
     STDSCR.keypad(1)
     curses.raw()
