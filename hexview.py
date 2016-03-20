@@ -1222,7 +1222,7 @@ class HexWindow(textmode.Window):
             return
 
         try:
-            if text[0] == '0':
+            if text[0] in '0ABCDEF':
                 offset = int(text, 16)
             else:
                 offset = int(text, 10)
@@ -1274,7 +1274,7 @@ class HexWindow(textmode.Window):
             return
 
         try:
-            if text[0] == '0':
+            if text[0] in '0ABCDEF':
                 offset = int(text, 16)
             else:
                 offset = int(text, 10)
