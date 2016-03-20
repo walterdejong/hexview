@@ -108,7 +108,177 @@ def dump_debug():
 
 
 class ScreenBuf(object):
-    '''a screen buffer consist of two planes:
+    '''base class for screen buffers
+    It basically implements a monochrome screenbuf in which
+    colors are ignored. You should however use either
+    MonoScreenBuf or ColorScreenBuf and not directly instantiate
+    this ScreenBuf class
+
+    The text buffer holds one byte per character in 7 bits ASCII
+    If the 8th bit is set, it is a special character (eg. a curses line)
+    '''
+
+    def __init__(self, w, h):
+        '''initialize'''
+
+        assert w > 0
+        assert h > 0
+
+        self.w = w
+        self.h = h
+
+        self.textbuf = bytearray(w * h)
+
+    def __getitem__(self, idx):
+        '''Returns tuple: (ch, color) at idx
+        idx may be an offset or tuple: (x, y) position
+
+        Raises IndexError, ValueError on invalid index
+        '''
+
+        if isinstance(idx, int):
+            offset = idx
+
+        elif isinstance(idx, tuple):
+            x, y = idx
+            offset = self.w * y + x
+
+        else:
+            raise ValueError('invalid argument')
+
+        ch = self.textbuf[offset]
+        if ch == 0:
+            # blank
+            ch = ' '
+        elif ch > 0x7f:
+            # special curses character
+            ch &= 0x7f
+            ch |= 0x400000
+        else:
+            # make string
+            ch = chr(ch)
+
+        return ch, 0
+
+    def __setitem__(self, idx, value):
+        '''put tuple: (ch, color) at idx
+        idx may be an offset or tuple: (x, y) position
+
+        Raises IndexError, ValueError on invalid index
+        or ValueError on invalid value
+        '''
+
+        ch, _ = value
+
+        if isinstance(ch, str):
+            ch = ord(ch)
+        elif ch > 0x400000:
+            # special curses character
+            ch &= 0x7f
+            ch |= 0x80
+
+        if isinstance(idx, int):
+            offset = idx
+
+        elif isinstance(idx, tuple):
+            x, y = idx
+            offset = self.w * y + x
+
+        else:
+            raise ValueError('invalid argument')
+
+        self.textbuf[offset] = ch
+
+    def puts(self, x, y, msg, color=0):
+        '''write message into buffer at x, y'''
+
+        offset = self.w * y + x
+        w = len(msg)
+        self.textbuf[offset:offset + w] = msg
+
+    def hline(self, x, y, w, ch, color=0):
+        '''repeat character horizontally'''
+
+        if isinstance(ch, str):
+            ch = ord(ch)
+        elif ch > 0x400000:
+            # special curses character
+            ch &= 0x7f
+            ch |= 0x80
+
+        offset = self.w * y + x
+        self.textbuf[offset:offset + w] = chr(ch) * w
+
+    def vline(self, x, y, h, ch, color=0):
+        '''repeat character horizontally'''
+
+        if isinstance(ch, str):
+            ch = ord(ch)
+        elif ch > 0x400000:
+            # special curses character
+            ch &= 0x7f
+            ch |= 0x80
+
+        offset = self.w * y + x
+        for _ in xrange(0, h):
+            self.textbuf[offset] = ch
+            offset += self.w
+
+    def memmove(self, dst_idx, src_idx, num):
+        '''copy num bytes at src_idx to dst_idx'''
+
+        dst2 = dst_idx + num
+        src2 = src_idx + num
+        self.textbuf[dst_idx:dst2] = self.textbuf[src_idx:src2]
+
+    def copyrect(self, dx, dy, src, sx=0, sy=0, sw=0, sh=0):
+        '''copy src rect sx,sy,sw,sh to dest self at dx,dy'''
+
+        assert isinstance(src, ScreenBuf)
+        assert dx >= 0
+        assert dy >= 0
+        assert sx >= 0
+        assert sy >= 0
+
+        if sw == 0:
+            sw = src.w
+        if sh == 0:
+            sh = src.h
+
+        if sw > self.w:
+            sw = self.w
+        if sh > self.h:
+            sh = self.h
+
+        assert sw > 0
+        assert sh > 0
+
+        # local function
+        def copyline(dst, dx, dy, src, sx, sy, sw):
+            '''copy line at sx,sy to dest dx,dy'''
+
+            si = sy * src.w + sx
+            di = dy * dst.w + dx
+            dst.textbuf[di:di + sw] = src.textbuf[si:si + sw]
+
+        # copy rect by copying line by line
+        for j in xrange(0, sh):
+            copyline(self, dx, dy + j, src, sx, sy + j, sw)
+
+
+
+class MonoScreenBuf(ScreenBuf):
+    '''monochrome screen buffer has no colors'''
+
+    def __init__(self, w, h):
+        '''initialize'''
+
+        super(MonoScreenBuf, self).__init__(w, h)
+
+
+
+class ColorScreenBuf(ScreenBuf):
+    '''a color screen buffer consist of two planes:
     a text buffer and a color buffer
     The text buffer holds one byte per character in 7 bits ASCII
     If the 8th bit is set, it is a special character (eg. a curses line)
@@ -123,13 +293,8 @@ class ScreenBuf(object):
     def __init__(self, w, h):
         '''initialize'''
 
-        assert w > 0
-        assert h > 0
+        super(ColorScreenBuf, self).__init__(w, h)
 
-        self.w = w
-        self.h = h
-
-        self.textbuf = bytearray(w * h)
         self.colorbuf = bytearray(w * h)
 
     def __getitem__(self, idx):
@@ -399,7 +564,11 @@ class Video(object):
             init_curses()
 
         self.h, self.w = STDSCR.getmaxyx()
-        self.screenbuf = ScreenBuf(self.w, self.h)
+        if HAS_COLORS:
+            self.screenbuf = ColorScreenBuf(self.w, self.h)
+        else:
+            self.screenbuf = MonoScreenBuf(self.w, self.h)
+
         self.rect = Rect(0, 0, self.w, self.h)
         self.color = video_color(WHITE, BLACK, bold=False)
         self.curses_color = curses_color(WHITE, BLACK, bold=False)
@@ -693,7 +862,11 @@ class Video(object):
         if not visible:
             return None
 
-        copy = ScreenBuf(w, h)
+        if HAS_COLORS:
+            copy = ColorScreenBuf(w, h)
+        else:
+            copy = MonoScreenBuf(w, h)
+
         copy.copyrect(0, 0, self.screenbuf, x, y, w, h)
         return copy
 
