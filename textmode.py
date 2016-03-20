@@ -404,16 +404,16 @@ class Video(object):
         self.color = video_color(WHITE, BLACK, bold=False)
         self.curses_color = curses_color(WHITE, BLACK, bold=False)
 
-    def set_color(self, fg, bg=None, bold=True):
+    def set_color(self, fg, bg=None, bold=True, alt=False):
         '''set current color
         Returns the combined color code
         '''
 
         self.color = video_color(fg, bg, bold)
-        self.curses_color = curses_color(fg, bg, bold)
+        self.curses_color = curses_color(fg, bg, bold, alt)
         return self.color
 
-    def putch(self, x, y, ch, color=-1):
+    def putch(self, x, y, ch, color=-1, alt=False):
         '''put character at x, y'''
 
         # clipping
@@ -424,12 +424,12 @@ class Video(object):
             color = self.color
             attr = self.curses_color
         else:
-            attr = curses_color(color)
+            attr = curses_color(color, alt=alt)
 
         self.screenbuf[x, y] = (ch, color)
         self.curses_putch(x, y, ch, attr)
 
-    def puts(self, x, y, msg, color=-1):
+    def puts(self, x, y, msg, color=-1, alt=False):
         '''write message at x, y'''
 
         visible, cx, cy, cw = self.rect.clip_hline(x, y, len(msg))
@@ -451,12 +451,12 @@ class Video(object):
             color = self.color
             attr = self.curses_color
         else:
-            attr = curses_color(color)
+            attr = curses_color(color, alt=alt)
 
         self.screenbuf.puts(cx, cy, msg, color)
         self.curses_puts(cx, cy, msg, attr)
 
-    def curses_putch(self, x, y, ch, attr=None):
+    def curses_putch(self, x, y, ch, attr=None, alt=False):
         '''put character into the curses screen x, y'''
 
         # curses.addch() has issues with drawing in the right bottom corner
@@ -494,7 +494,7 @@ class Video(object):
         else:
             STDSCR.addstr(y, x, msg, attr)
 
-    def hline(self, x, y, w, ch, color=-1):
+    def hline(self, x, y, w, ch, color=-1, alt=False):
         '''draw horizontal line at x, y'''
 
         visible, x, y, w = self.rect.clip_hline(x, y, w)
@@ -505,14 +505,14 @@ class Video(object):
             color = self.color
             attr = self.curses_color
         else:
-            attr = curses_color(color)
+            attr = curses_color(color, alt=alt)
 
         self.screenbuf.hline(x, y, w, ch, color)
         if isinstance(ch, str):
             ch = ord(ch)
         STDSCR.hline(y, x, ch, w, attr)
 
-    def vline(self, x, y, h, ch, color=-1):
+    def vline(self, x, y, h, ch, color=-1, alt=False):
         '''draw vertical line at x, y'''
 
         visible, x, y, h = self.rect.clip_vline(x, y, h)
@@ -523,30 +523,30 @@ class Video(object):
             color = self.color
             attr = self.curses_color
         else:
-            attr = curses_color(color)
+            attr = curses_color(color, alt=alt)
 
         self.screenbuf.vline(x, y, h, ch, color)
         if isinstance(ch, str):
             ch = ord(ch)
         STDSCR.vline(y, x, ch, h, attr)
 
-    def hsplit(self, x, y, w, ch, color=-1):
+    def hsplit(self, x, y, w, ch, color=-1, alt=False):
         '''draw a horizontal split'''
 
-        self.hline(x + 1, y, w - 2, curses.ACS_HLINE, color)
+        self.hline(x + 1, y, w - 2, curses.ACS_HLINE, color, alt)
         # put tee characters on the sides
-        self.putch(x, y, curses.ACS_LTEE, color)
-        self.putch(x + w - 1, y, curses.ACS_RTEE, color)
+        self.putch(x, y, curses.ACS_LTEE, color, alt)
+        self.putch(x + w - 1, y, curses.ACS_RTEE, color, alt)
 
-    def vsplit(self, x, y, h, ch, color=-1):
+    def vsplit(self, x, y, h, ch, color=-1, alt=False):
         '''draw a vertical split'''
 
-        self.vline(x, y + 1, h - 2, curses.ACS_VLINE, color)
+        self.vline(x, y + 1, h - 2, curses.ACS_VLINE, color, alt)
         # put tee characters on the sides
-        self.putch(x, y, curses.ACS_TTEE, color)
-        self.putch(x, y + h - 1, curses.ACS_BTEE, color)
+        self.putch(x, y, curses.ACS_TTEE, color, alt)
+        self.putch(x, y + h - 1, curses.ACS_BTEE, color, alt)
 
-    def fillrect(self, x, y, w, h, color=-1):
+    def fillrect(self, x, y, w, h, color=-1, alt=False):
         '''draw rectangle at x, y'''
 
         visible, x, y, w, h = self.rect.clip_rect(x, y, w, h)
@@ -557,13 +557,13 @@ class Video(object):
             color = self.color
             attr = self.curses_color
         else:
-            attr = curses_color(color)
+            attr = curses_color(color, alt=alt)
 
         for j in xrange(0, h):
             self.screenbuf.hline(x, y + j, w, ' ', color)
             STDSCR.hline(y + j, x, ' ', w, attr)
 
-    def border(self, x, y, w, h, color=-1):
+    def border(self, x, y, w, h, color=-1, alt=False):
         '''draw rectangle border'''
 
         visible, cx, cy, cw, ch = self.rect.clip_rect(x, y, w, h)
@@ -574,7 +574,7 @@ class Video(object):
             color = self.color
             attr = self.curses_color
         else:
-            attr = curses_color(color)
+            attr = curses_color(color, alt=alt)
 
         # top
         if y >= 0 and y < self.h:
@@ -618,7 +618,7 @@ class Video(object):
             self.screenbuf[rx, by] = (curses.ACS_LRCORNER, color)
             self.curses_putch(rx, by, curses.ACS_LRCORNER, attr)
 
-    def color_putch(self, x, y, color=-1):
+    def color_putch(self, x, y, color=-1, alt=False):
         '''put color at x, y'''
 
         if not self.rect.clip_point(x, y):
@@ -628,7 +628,7 @@ class Video(object):
             color = self.color
             attr = self.curses_color
         else:
-            attr = curses_color(color)
+            attr = curses_color(color, alt=alt)
 
         # get the character and redraw with color
         offset = self.w * y + x
@@ -638,7 +638,7 @@ class Video(object):
             ch = ord(ch)
         self.curses_putch(x, y, ch, attr)
 
-    def color_hline(self, x, y, w, color=-1):
+    def color_hline(self, x, y, w, color=-1, alt=False):
         '''draw horizontal color line'''
 
         visible, x, y, w = self.rect.clip_hline(x, y, w)
@@ -649,7 +649,7 @@ class Video(object):
             color = self.color
             attr = self.curses_color
         else:
-            attr = curses_color(color)
+            attr = curses_color(color, alt=alt)
 
         # get the character and redraw with color
         offset = self.w * y + x
@@ -661,7 +661,7 @@ class Video(object):
                 ch = ord(ch)
             self.curses_putch(x + i, y, ch, attr)
 
-    def color_vline(self, x, y, h, color=-1):
+    def color_vline(self, x, y, h, color=-1, alt=False):
         '''draw vertical colored line'''
 
         visible, x, y, h = self.rect.clip_vline(x, y, h)
@@ -672,7 +672,7 @@ class Video(object):
             color = self.color
             attr = self.curses_color
         else:
-            attr = curses_color(color)
+            attr = curses_color(color, alt=alt)
 
         # get the character and redraw with color
         offset = self.w * y + x
@@ -953,7 +953,7 @@ class Window(object):
 #            ...
         pass
 
-    def putch(self, x, y, ch, color=-1):
+    def putch(self, x, y, ch, color=-1, alt=False):
         '''put character in window'''
 
         if not self.bounds.clip_point(x, y):
@@ -962,9 +962,9 @@ class Window(object):
         if color == -1:
             color = self.colors.text
 
-        VIDEO.putch(self.bounds.x + x, self.bounds.y + y, ch, color)
+        VIDEO.putch(self.bounds.x + x, self.bounds.y + y, ch, color, alt)
 
-    def puts(self, x, y, msg, color=-1):
+    def puts(self, x, y, msg, color=-1, alt=False):
         '''print message in window
         Does not clear to end of line
         '''
@@ -991,9 +991,9 @@ class Window(object):
         if color == -1:
             color = self.colors.text
 
-        VIDEO.puts(self.bounds.x + cx, self.bounds.y + cy, msg, color)
+        VIDEO.puts(self.bounds.x + cx, self.bounds.y + cy, msg, color, alt)
 
-    def cputs(self, x, y, msg, color=-1):
+    def cputs(self, x, y, msg, color=-1, alt=False):
         '''print message in window
         Clear to end of line
         '''
@@ -1019,7 +1019,8 @@ class Window(object):
             color = self.colors.text
 
         if len(msg) > 0:
-            VIDEO.puts(self.bounds.x + cx, self.bounds.y + cy, msg, color)
+            VIDEO.puts(self.bounds.x + cx, self.bounds.y + cy, msg, color,
+                       alt)
 
         # clear to end of line
         l = len(msg)
@@ -1027,9 +1028,9 @@ class Window(object):
         if w_eol > 0:
             clear_eol = ' ' * w_eol
             VIDEO.puts(self.bounds.x + cx + l, self.bounds.y + cy,
-                       clear_eol, color)
+                       clear_eol, color, alt)
 
-    def color_putch(self, x, y, color=-1):
+    def color_putch(self, x, y, color=-1, alt=False):
         '''put color byte in window'''
 
         if not self.bounds.clip_point(x, y):
@@ -1038,7 +1039,7 @@ class Window(object):
         if color == -1:
             color = self.colors.text
 
-        VIDEO.color_putch(self.bounds.x + x, self.bounds.y + y, color)
+        VIDEO.color_putch(self.bounds.x + x, self.bounds.y + y, color, alt)
 
 
 
@@ -1126,9 +1127,11 @@ class TextWindow(Window):
 
         if self.flags & Window.FOCUS:
             color = self.colors.cursor
+            alt = True
         else:
             color = -1
-        self.printline(self.cursor, color)
+            alt = False
+        self.printline(self.cursor, color, alt)
 
         self.update_statusbar(' %d,%d ' % (self.top + self.cursor + 1,
                                            self.xoffset + 1))
@@ -1138,7 +1141,7 @@ class TextWindow(Window):
 
         self.printline(self.cursor)
 
-    def printline(self, y, color=-1):
+    def printline(self, y, color=-1, alt=False):
         '''print a single line'''
 
         try:
@@ -1152,7 +1155,7 @@ class TextWindow(Window):
             line = line.replace('\t', ' ' * self.tabsize)
             # take x-scrolling into account
             line = line[self.xoffset:]
-            self.cputs(0, y, line, color)
+            self.cputs(0, y, line, color, alt)
 
     def init_scrollbar(self):
         '''initalize scrollbar'''
@@ -1533,9 +1536,11 @@ class Button(Widget):
         if self.has_focus:
             text = '>' + text + '<'
             color = self.colors.activebutton
+            alt = True
         else:
             text = ' ' + text + ' '
             color = self.colors.button
+            alt = False
         add += 1
 
         xpos = self.x
@@ -1547,7 +1552,7 @@ class Button(Widget):
             # clear on right side
             self.parent.puts(xpos + button_width(self.label), self.y, ' ')
 
-        self.parent.puts(xpos, self.y, text, color)
+        self.parent.puts(xpos, self.y, text, color, alt)
 
         if self.hotkey_pos > -1:
             # draw hotkey
@@ -1557,7 +1562,7 @@ class Button(Widget):
                 color = self.colors.buttonhotkey
 
             self.parent.puts(xpos + self.hotkey_pos + add, self.y,
-                             self.hotkey, color)
+                             self.hotkey, color, alt)
 
     def push(self):
         '''push the button'''
@@ -1869,11 +1874,11 @@ class Menu(Window):
             attr_hotkey = self.colors.menuhotkey
 
         item = self.items[self.cursor]
-        self.cputs(0, self.cursor, ' ' + item.text, attr)
+        self.cputs(0, self.cursor, ' ' + item.text, attr, alt=True)
         if item.hotkey is not None:
             # draw hotkey
             self.putch(1 + item.hotkey_pos, self.cursor, item.hotkey,
-                       attr_hotkey)
+                       attr_hotkey, alt=True)
 
     def clear_cursor(self):
         '''erase the cursor'''
@@ -2074,17 +2079,19 @@ class MenuBar(Window):
         if self.flags & Window.FOCUS:
             color = self.colors.activemenu
             color_hotkey = self.colors.activemenuhotkey
+            alt = True
         else:
             color = self.colors.menu
             color_hotkey = self.colors.menuhotkey
+            alt = False
 
         header = self.headers[self.cursor]
         self.puts(self.pos[self.cursor] - 1, 0, ' ' + header.text + ' ',
-                  color)
+                  color, alt)
         if header.hotkey is not None:
             # draw hotkey
             self.putch(self.pos[self.cursor] + header.hotkey_pos, 0,
-                       header.hotkey, color_hotkey)
+                       header.hotkey, color_hotkey, alt)
 
     def clear_cursor(self):
         '''erase cursor'''
@@ -2252,7 +2259,8 @@ class TextField(Widget):
                 ch = self.text[self.cursor]
             else:
                 ch = ' '
-            VIDEO.putch(self.x + self.cursor, self.y, ch, self.colors.cursor)
+            VIDEO.putch(self.x + self.cursor, self.y, ch, self.colors.cursor,
+                        alt=True)
 
     def clear(self):
         '''clears the TextField onscreen (not the TextField content)'''
@@ -2526,12 +2534,14 @@ def reverse_video(color):
     return (fg << 4) | bg
 
 
-def curses_color(fg, bg=None, bold=False):
+def curses_color(fg, bg=None, bold=False, alt=False):
     '''Returns curses colorpair index'''
 
     global CURSES_COLORPAIR_IDX
 
     if not HAS_COLORS:
+        if alt:
+            return curses.A_REVERSE
         return 0
 
     if bg is None:

@@ -513,7 +513,7 @@ class HexWindow(textmode.Window):
 
         offset = self.address + self.cursor_y * 16 + self.cursor_x
         x = self.hexview_position(offset)
-        self.draw_cursor_at(10 + x, self.cursor_y, color)
+        self.draw_cursor_at(10 + x, self.cursor_y, color, clear)
 
         y = self.cursor_y
         try:
@@ -540,13 +540,15 @@ class HexWindow(textmode.Window):
             if clear:
                 color = self.colors.invisibles
 
-        self.color_putch(60 + self.cursor_x, self.cursor_y, color)
+        alt = not clear
+        self.color_putch(60 + self.cursor_x, self.cursor_y, color, alt)
 
-    def draw_cursor_at(self, x, y, color):
+    def draw_cursor_at(self, x, y, color, clear):
         '''draw hex bytes cursor at x, y'''
 
+        alt = not clear
         textmode.VIDEO.color_hline(self.bounds.x + x, self.bounds.y + y,
-                                   2, color)
+                                   2, color, alt)
 
     def clear_cursor(self):
         '''clear the cursor'''
