@@ -200,6 +200,10 @@ class HexWindow(textmode.Window):
         self.valueview = ValueSubWindow(x, y + self.frame.h - 1, w, 7,
                                         colors)
 
+        self.address_fmt = '%08X  '
+        self.bytes_offset = 10
+        self.ascii_offset = 60
+
     def resize_event(self):
         '''the terminal was resized'''
 
@@ -246,6 +250,34 @@ class HexWindow(textmode.Window):
         self.title = os.path.basename(filename)
         if len(self.title) > self.bounds.w:
             self.title = self.title[:self.bounds.w - 6] + '...'
+
+        self.set_address_format(len(self.data))
+
+    def set_address_format(self, top_addr):
+        '''set address notation'''
+
+        # slightly change layout so that app stays goodlooking
+
+        if top_addr <= 0xffff:
+            # up to 64 kiB
+            self.address_fmt = '%04X    '
+            self.bytes_offset = 8
+            self.ascii_offset = 60
+        elif top_addr <= 0xffffffff:
+            # up to 4 GiB
+            self.address_fmt = '%08X  '
+            self.bytes_offset = 10
+            self.ascii_offset = 60
+        elif top_addr <= 0xffffffffff:
+            # up to 1 TiB
+            self.address_fmt = '%010X  '
+            self.bytes_offset = 12
+            self.ascii_offset = 62
+        else:
+            # up to 256 TiB will look fine
+            self.address_fmt = '%012X '
+            self.bytes_offset = 13
+            self.ascii_offset = 62
 
     def show(self):
         '''open the window'''
@@ -314,7 +346,7 @@ class HexWindow(textmode.Window):
         while y < self.bounds.h:
             # address
             offset = self.address + y * 16
-            line = '%08X  ' % offset
+            line = self.address_fmt % offset
 
             # bytes (left block)
             try:
@@ -355,7 +387,7 @@ class HexWindow(textmode.Window):
         while y < self.bounds.h:
             # address
             offset = self.address + y * 16
-            line = '%08X  ' % offset
+            line = self.address_fmt % offset
 
             # left block
             try:
@@ -409,7 +441,7 @@ class HexWindow(textmode.Window):
         while y < self.bounds.h:
             # address
             offset = self.address + y * 16
-            line = '%08X  ' % offset
+            line = self.address_fmt % offset
 
             # left block
             try:
@@ -490,11 +522,12 @@ class HexWindow(textmode.Window):
                 ch = ' '
 
         # put the ASCII bytes line
-        self.puts(60, y, line, self.colors.text)
+        self.puts(self.ascii_offset, y, line, self.colors.text)
 
         # color invisibles
         for i in invis:
-            self.color_putch(60 + i, y, self.colors.invisibles)
+            self.color_putch(self.ascii_offset + i, y,
+                             self.colors.invisibles)
 
     def draw_cursor(self, clear=False, mark=None):
         '''draw cursor'''
@@ -515,7 +548,8 @@ class HexWindow(textmode.Window):
 
         offset = self.address + self.cursor_y * 16 + self.cursor_x
         x = self.hexview_position(offset)
-        self.draw_cursor_at(10 + x, self.cursor_y, color, clear)
+        self.draw_cursor_at(self.bytes_offset + x, self.cursor_y, color,
+                            clear)
 
         y = self.cursor_y
         ch = self.data[self.address + y * 16 + self.cursor_x]
@@ -539,7 +573,8 @@ class HexWindow(textmode.Window):
                 color = self.colors.invisibles
 
         alt = not clear
-        self.color_putch(60 + self.cursor_x, self.cursor_y, color, alt)
+        self.color_putch(self.ascii_offset + self.cursor_x, self.cursor_y,
+                         color, alt)
 
     def draw_cursor_at(self, x, y, color, clear):
         '''draw hex bytes cursor at x, y'''
@@ -607,18 +642,21 @@ class HexWindow(textmode.Window):
 
         # ASCII view
         if starty == endy:
-            textmode.VIDEO.color_hline(self.bounds.x + 60 + startx,
+            textmode.VIDEO.color_hline((self.bounds.x + self.ascii_offset +
+                                        startx),
                                        self.bounds.y + starty, endx - startx,
                                        self.colors.cursor)
         else:
-            textmode.VIDEO.color_hline(self.bounds.x + 60 + startx,
+            textmode.VIDEO.color_hline((self.bounds.x + self.ascii_offset +
+                                        startx),
                                        self.bounds.y + starty, 16 - startx,
                                        self.colors.cursor)
             for j in xrange(starty + 1, endy):
-                textmode.VIDEO.color_hline(self.bounds.x + 60,
+                textmode.VIDEO.color_hline((self.bounds.x +
+                                            self.ascii_offset),
                                            self.bounds.y + j, 16,
                                            self.colors.cursor)
-            textmode.VIDEO.color_hline(self.bounds.x + 60,
+            textmode.VIDEO.color_hline(self.bounds.x + self.ascii_offset,
                                        self.bounds.y + endy, endx,
                                        self.colors.cursor)
 
@@ -627,19 +665,21 @@ class HexWindow(textmode.Window):
         endx = self.hexview_position(end)
 
         if starty == endy:
-            textmode.VIDEO.color_hline(self.bounds.x + 10 + startx,
+            textmode.VIDEO.color_hline((self.bounds.x + self.bytes_offset +
+                                        startx),
                                        self.bounds.y + starty, endx - startx,
                                        self.colors.cursor)
         else:
             w = 16 * 3
-            textmode.VIDEO.color_hline(self.bounds.x + 10 + startx,
+            textmode.VIDEO.color_hline((self.bounds.x + self.bytes_offset +
+                                        startx),
                                        self.bounds.y + starty, w - startx,
                                        self.colors.cursor)
             for j in xrange(starty + 1, endy):
-                textmode.VIDEO.color_hline(self.bounds.x + 10,
+                textmode.VIDEO.color_hline(self.bounds.x + self.bytes_offset,
                                            self.bounds.y + j, w,
                                            self.colors.cursor)
-            textmode.VIDEO.color_hline(self.bounds.x + 10,
+            textmode.VIDEO.color_hline(self.bounds.x + self.bytes_offset,
                                        self.bounds.y + endy, endx,
                                        self.colors.cursor)
 
