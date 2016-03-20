@@ -1449,10 +1449,10 @@ class TextWindow(Window):
             elif key == KEY_RIGHT:
                 self.move_right()
 
-            elif key == KEY_PAGEUP:
+            elif key == KEY_PAGEUP or key == 'Ctrl-U':
                 self.pageup()
 
-            elif key == KEY_PAGEDOWN:
+            elif key == KEY_PAGEDOWN or key == 'Ctrl-D':
                 self.pagedown()
 
             elif key == KEY_HOME:
@@ -1538,7 +1538,10 @@ class Button(Widget):
             color = self.colors.activebutton
             alt = True
         else:
-            text = ' ' + text + ' '
+            if not HAS_COLORS:
+                text = '[' + text + ']'
+            else:
+                text = ' ' + text + ' '
             color = self.colors.button
             alt = False
         add += 1
@@ -2669,7 +2672,14 @@ def init_curses():
     curses.noecho()
     STDSCR.keypad(1)
     curses.raw()
-    curses.curs_set(0)
+
+    # disable cursor
+    # may fail on some kind of terminal
+    try:
+        curses.curs_set(0)
+    except curses.error:
+        pass
+
     curses.nonl()
     curses.noqiflush()
 
@@ -2699,13 +2709,23 @@ def terminate():
     '''end the curses window mode'''
 
     if STDSCR is not None:
-        curses.curs_set(1)
+        # enable cursor
+        # may fail on some kind of terminal
+        try:
+            curses.curs_set(1)
+        except curses.error:
+            pass
+
+        # set cursor at bottom of screen
+        STDSCR.move(VIDEO.h - 1, 0)
+
         curses.nocbreak()
         STDSCR.keypad(0)
         curses.echo()
         curses.resetty()
         curses.endwin()
 
+    print
     dump_debug()
 
     sys.stdout.flush()
@@ -2755,8 +2775,11 @@ def getch():
     Returns key as a string value
     '''
 
+    # move cursor to bottom right corner
+    STDSCR.move(VIDEO.h - 1, VIDEO.w - 1)
+#    STDSCR.leaveok(0)      # leaveok() doesn't work; broken?
+
     # update the screen
-#    curses.panel.update_panels()
     curses.doupdate()
 
     while True:

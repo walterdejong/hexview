@@ -1628,7 +1628,7 @@ class HexWindow(textmode.Window):
             elif key == KEY_PAGEUP or key == 'Ctrl-U':
                 self.pageup()
 
-            elif key == KEY_PAGEDOWN or key == 'Ctrl-V':
+            elif key == KEY_PAGEDOWN or key == 'Ctrl-D':
                 self.pagedown()
 
             elif key == KEY_HOME or key == 'g':
@@ -2048,7 +2048,7 @@ class HelpWindow(textmode.TextWindow):
 
  hjkl     arrows      Move cursor
  Ctrl-U   PageUp      Go one page up
- Ctrl-V   PageDown    Go one page down
+ Ctrl-D   PageDown    Go one page down
  g        Home        Go to top
  G        End         Go to end
  ^        0           Go to start of line
@@ -2141,7 +2141,7 @@ Commands
             elif key == KEY_PAGEUP or key == 'Ctrl-U':
                 self.pageup()
 
-            elif key == KEY_PAGEDOWN or key == 'Ctrl-V':
+            elif key == KEY_PAGEDOWN or key == 'Ctrl-D':
                 self.pagedown()
 
             elif key == KEY_HOME or key == 'g':
