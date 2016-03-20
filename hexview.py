@@ -518,11 +518,7 @@ class HexWindow(textmode.Window):
         self.draw_cursor_at(10 + x, self.cursor_y, color, clear)
 
         y = self.cursor_y
-        try:
-            ch = self.data[self.address + y * 16 + self.cursor_x]
-        except IndexError:
-            # FIXME IndexError due to cursor movement should be prevented
-            ch = ord(' ')
+        ch = self.data[self.address + y * 16 + self.cursor_x]
         self.draw_ascii_cursor(ch, color, clear)
 
         self.update_values()
