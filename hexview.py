@@ -730,6 +730,11 @@ class HexWindow(textmode.Window):
                 # no change (already at end)
                 return
         else:
+            addr = self.address + (self.cursor_y + 1) * 16 + self.cursor_x
+            if addr >= len(self.data):
+                # can not go beyond EOF
+                return
+
             self.clear_cursor()
             self.cursor_y += 1
 
@@ -768,6 +773,11 @@ class HexWindow(textmode.Window):
                 # no change (already at end)
                 return
         else:
+            addr = self.address + self.cursor_y * 16 + self.cursor_x + 1
+            if addr >= len(self.data):
+                # can not go beyond EOF
+                return
+
             self.clear_cursor()
 
         if self.cursor_x >= 15:
