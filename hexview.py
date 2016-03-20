@@ -35,7 +35,7 @@ class MemoryFile(object):
     def __init__(self, filename=None, pagesize=25*16):
         '''initialise'''
 
-        self.filename = None
+        self.filename = filename
         self.filesize = 0
         self.fd = None
         self.low = self.high = 0
