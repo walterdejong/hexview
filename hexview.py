@@ -24,6 +24,8 @@ from textmode import debug
 
 VERSION = '0.9-beta'
 
+OPT_LINEMODE = textmode.LM_HLINE | textmode.LM_VLINE
+
 
 class MemoryFile(object):
     '''access file data as if it is an in-memory array'''
@@ -2214,21 +2216,34 @@ def hexview_main(filename):
 def short_usage():
     '''print short usage information and exit'''
 
-    print 'usage: %s [--no-color] <filename>' % os.path.basename(sys.argv[0])
+    print 'usage: %s [options] <filename>' % os.path.basename(sys.argv[0])
     sys.exit(1)
 
 
 def usage():
     '''print usage information and exit'''
 
-    short_usage()
+    print 'usage: %s [options] <filename>' % os.path.basename(sys.argv[0])
+    print '''options:
+  -h, --help           Show this information
+      --no-color       Disable colors
+      --ascii-lines    Use plain ASCII for line drawing
+      --no-lines       Disable all line drawing
+      --no-hlines      Disable horizontal lines
+      --no-vlines      Disable vertical lines
+'''
+    sys.exit(1)
 
 
 def get_options():
     '''parse command line options'''
 
+    global OPT_LINEMODE
+
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'h', ['help', 'no-color'])
+        opts, args = getopt.getopt(sys.argv[1:], 'h',
+                                   ['help', 'no-color', 'no-lines',
+                                    'ascii-lines', 'no-hlines', 'no-vlines'])
     except getopt.GetoptError:
         short_usage()
 
@@ -2238,6 +2253,18 @@ def get_options():
 
         elif opt == '--no-color':
             textmode.WANT_COLORS = False
+
+        elif opt == '--no-lines':
+            OPT_LINEMODE = 0
+
+        elif opt == '--ascii-lines':
+            OPT_LINEMODE |= textmode.LM_ASCII
+
+        elif opt == '--no-hlines':
+            OPT_LINEMODE &= ~textmode.LM_HLINE
+
+        elif opt == '--no-vlines':
+            OPT_LINEMODE &= ~textmode.LM_VLINE
 
     if not args:
         short_usage()
@@ -2251,6 +2278,7 @@ if __name__ == '__main__':
     filename = get_options()
 
     textmode.init()
+    textmode.linemode(OPT_LINEMODE)
 
     try:
         hexview_main(filename)

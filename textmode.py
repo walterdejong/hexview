@@ -41,6 +41,12 @@ WANT_COLORS = True
 # terminal can do color at all
 HAS_COLORS = False
 
+LM_HLINE = 1
+LM_VLINE = 2
+LM_ASCII = 4
+LINEMODE = LM_HLINE | LM_VLINE
+CURSES_LINES = None
+
 # curses key codes get translated to strings by getch()
 # There is no support for F-keys! Functions keys are evil on Macs
 KEY_ESC = 'ESC'
@@ -2822,6 +2828,69 @@ def center_y(height, area=0):
         y = (area - height) * 0.5
 
     return int(y + 0.5)
+
+
+def linemode(mode):
+    '''set linemode'''
+
+    global LINEMODE, CURSES_LINES
+
+    if CURSES_LINES is None:
+        # save original curses line characters
+        CURSES_LINES = (curses.ACS_HLINE, curses.ACS_VLINE,
+                        curses.ACS_ULCORNER, curses.ACS_URCORNER,
+                        curses.ACS_LLCORNER, curses.ACS_LRCORNER,
+                        curses.ACS_LTEE, curses.ACS_RTEE,
+                        curses.ACS_TTEE, curses.ACS_BTEE)
+    else:
+        # restore original curses line characters
+        curses.ACS_HLINE = CURSES_LINES[0]
+        curses.ACS_VLINE = CURSES_LINES[1]
+        curses.ACS_ULCORNER = CURSES_LINES[2]
+        curses.ACS_URCORNER = CURSES_LINES[3]
+        curses.ACS_LLCORNER = CURSES_LINES[4]
+        curses.ACS_LRCORNER = CURSES_LINES[5]
+        curses.ACS_LTEE = CURSES_LINES[6]
+        curses.ACS_RTEE = CURSES_LINES[7]
+        curses.ACS_TTEE = CURSES_LINES[8]
+        curses.ACS_BTEE = CURSES_LINES[9]
+
+    LINEMODE = mode
+
+    # redefine character set
+    if LINEMODE & LM_ASCII:
+        curses.ACS_HLINE = ord('-')
+        curses.ACS_VLINE = ord('|')
+        curses.ACS_ULCORNER = ord('+')
+        curses.ACS_URCORNER = ord('+')
+        curses.ACS_LLCORNER = ord('+')
+        curses.ACS_LRCORNER = ord('+')
+        curses.ACS_LTEE = ord('+')
+        curses.ACS_RTEE = ord('+')
+        curses.ACS_TTEE = ord('+')
+        curses.ACS_BTEE = ord('+')
+
+    if not LINEMODE & LM_VLINE:
+        curses.ACS_VLINE = ord(' ')
+        curses.ACS_ULCORNER = curses.ACS_HLINE
+        curses.ACS_URCORNER = curses.ACS_HLINE
+        curses.ACS_LLCORNER = curses.ACS_HLINE
+        curses.ACS_LRCORNER = curses.ACS_HLINE
+        curses.ACS_LTEE = curses.ACS_HLINE
+        curses.ACS_RTEE = curses.ACS_HLINE
+        curses.ACS_TTEE = curses.ACS_HLINE
+        curses.ACS_BTEE = curses.ACS_HLINE
+
+    if not LINEMODE & LM_HLINE:
+        curses.ACS_HLINE = ord(' ')
+        curses.ACS_ULCORNER = curses.ACS_VLINE
+        curses.ACS_URCORNER = curses.ACS_VLINE
+        curses.ACS_LLCORNER = curses.ACS_VLINE
+        curses.ACS_LRCORNER = curses.ACS_VLINE
+        curses.ACS_LTEE = curses.ACS_VLINE
+        curses.ACS_RTEE = curses.ACS_VLINE
+        curses.ACS_TTEE = curses.ACS_VLINE
+        curses.ACS_BTEE = curses.ACS_VLINE
 
 
 def init_curses():
