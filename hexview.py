@@ -1506,6 +1506,9 @@ class HexWindow(textmode.Window):
         elif cmd in ('about', 'version'):
             self.show_about()
 
+        elif cmd == 'license':
+            self.show_license()
+
         elif cmd in ('q', 'q!', 'quit'):
             return textmode.QUIT
 
@@ -1574,6 +1577,18 @@ class HexWindow(textmode.Window):
         win = AboutBox()
         win.show()
         win.runloop()
+
+    def show_license(self):
+        '''show the software license'''
+
+        win = LicenseBox()
+        win.show()
+        if win.runloop() == 0:
+            # license not accepted
+            textmode.terminate()
+            print ("If you do not accept the license, you really shouldn't "
+                   "be using this software")
+            sys.exit(1)
 
     def print_values(self):
         '''toggle values subwindow'''
@@ -2117,6 +2132,7 @@ Commands
  :little              Set little endian mode
  :load FILENAME       Load alternate file
  :help    :?          Show this information
+ :license             Show software license
  :about   :version    Show About box
  :q       :q!         Quit'''
 
@@ -2200,6 +2216,45 @@ Commands
 
 
 
+class LicenseBox(textmode.Alert):
+    '''shows software license'''
+
+    def __init__(self):
+        '''initialize'''
+
+        text = '''Copyright (c) 2016 Walter de Jong <walter@heiho.net>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.'''
+
+        colors = textmode.ColorSet(BLACK, WHITE)
+        colors.title = textmode.video_color(RED, WHITE)
+        colors.button = textmode.video_color(WHITE, BLUE, bold=True)
+        colors.buttonhotkey = textmode.video_color(YELLOW, BLUE, bold=True)
+        colors.activebutton = textmode.video_color(WHITE, GREEN, bold=True)
+        colors.activebuttonhotkey = textmode.video_color(YELLOW, GREEN,
+                                                         bold=True)
+        super(LicenseBox, self).__init__(colors, 'License', text,
+                                         ['<D>ecline', '<A>ccept'], default=1,
+                                         center_text=False)
+
+
+
 class AboutBox(textmode.Alert):
     '''about box'''
 
@@ -2211,7 +2266,10 @@ class AboutBox(textmode.Alert):
 version %s
 
 Copyright 2016 by
-Walter de Jong <walter@heiho.net>''' % ('-' * len(VERSION), VERSION)
+Walter de Jong <walter@heiho.net>
+
+This is free software, available
+under terms of the MIT license''' % ('-' * len(VERSION), VERSION)
 
         colors = textmode.ColorSet(BLACK, WHITE)
         colors.title = textmode.video_color(RED, WHITE)
