@@ -37,7 +37,11 @@ See `hexview.py --help` for more options.
 
 Installing hexview
 ------------------
-Run `setup.py install` or use `setup.py bdist` to create a package.
+Run the following command in a terminal:
+
+    python setup.py install
+
+or use `setup.py bdist` to create a package.
 
 
 Copyright 2016 by Walter de Jong <walter@heiho.net>
