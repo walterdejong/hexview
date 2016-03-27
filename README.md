@@ -19,7 +19,7 @@ particular offset using '`@`'. Use the arrow keys for recalling search and
 address history.
 
 Use the number keys '`1`', '`2`', and '`4`' to select different views:
-bytes, words, and quadwords.
+bytes, words, and quads.
 
 Hit '`p`' to toggle the printing the values in the subwindow at the bottom.
 There's much more, so be sure to read the `:help`.  
