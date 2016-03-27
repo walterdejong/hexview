@@ -30,14 +30,16 @@ import curses
 import struct
 import getopt
 
-import textmode
+from hexviewlib import textmode
 
-from textmode import Rect
-from textmode import WHITE, YELLOW, GREEN, CYAN, BLUE, MAGENTA, RED, BLACK
-from textmode import getch, KEY_ESC, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT
-from textmode import KEY_PAGEUP, KEY_PAGEDOWN, KEY_HOME, KEY_END, KEY_RETURN
-from textmode import KEY_TAB, KEY_BTAB, KEY_BS, KEY_DEL
-from textmode import debug
+from hexviewlib.textmode import Rect
+from hexviewlib.textmode import WHITE, YELLOW, GREEN, CYAN, BLUE, MAGENTA
+from hexviewlib.textmode import RED, BLACK
+from hexviewlib.textmode import getch, KEY_ESC, KEY_RETURN
+from hexviewlib.textmode import KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT
+from hexviewlib.textmode import KEY_PAGEUP, KEY_PAGEDOWN, KEY_HOME, KEY_END
+from hexviewlib.textmode import KEY_TAB, KEY_BTAB, KEY_BS, KEY_DEL
+from hexviewlib.textmode import debug
 
 VERSION = '0.9-beta'
 
