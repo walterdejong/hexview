@@ -41,7 +41,7 @@ from hexviewlib.textmode import KEY_PAGEUP, KEY_PAGEDOWN, KEY_HOME, KEY_END
 from hexviewlib.textmode import KEY_TAB, KEY_BTAB, KEY_BS, KEY_DEL
 from hexviewlib.textmode import debug
 
-VERSION = '0.9-beta'
+VERSION = '1.0'
 
 OPT_LINEMODE = textmode.LM_HLINE | textmode.LM_VLINE
 
@@ -2354,6 +2354,7 @@ def usage():
       --no-lines       Disable all line drawing
       --no-hlines      Disable horizontal lines
       --no-vlines      Disable vertical lines
+  -v, --version        Display version and exit
 '''
     sys.exit(1)
 
@@ -2364,9 +2365,10 @@ def get_options():
     global OPT_LINEMODE
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'h',
+        opts, args = getopt.getopt(sys.argv[1:], 'hv',
                                    ['help', 'no-color', 'no-lines',
-                                    'ascii-lines', 'no-hlines', 'no-vlines'])
+                                    'ascii-lines', 'no-hlines', 'no-vlines',
+                                    'version'])
     except getopt.GetoptError:
         short_usage()
 
@@ -2388,6 +2390,11 @@ def get_options():
 
         elif opt == '--no-vlines':
             OPT_LINEMODE &= ~textmode.LM_VLINE
+
+        elif opt in ('-v', '--version'):
+            print 'hexview version %s' % VERSION
+            print 'Copyright 2016 by Walter de Jong <walter@heiho.net>'
+            sys.exit(1)
 
     if not args:
         short_usage()
