@@ -3,7 +3,7 @@ hexview
 
 Interactive console mode hex viewer
 
-![screenshot](master/images/hexview.png)
+![screenshot](https://raw.githubusercontent.com/walterdejong/hexview/master/images/hexview.png)
 
 For the love of console programs ... this hexviewer looks a lot
 like a classic DOS program, and/but its user interface is somewhat
