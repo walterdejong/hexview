@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python2
 #
 #   setup.py    WJ116
 #   for hexview
