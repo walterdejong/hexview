@@ -125,12 +125,12 @@ def dump_debug():
     global DEBUG_LOG
 
     for msg in DEBUG_LOG:
-        print msg
+        print(msg)
 
     DEBUG_LOG = []
 
 
-class ScreenBuf(object):
+class ScreenBuf:
     '''base class for screen buffers
     It basically implements a monochrome screenbuf in which
     colors are ignored. You should however use either
@@ -140,6 +140,14 @@ class ScreenBuf(object):
     The text buffer holds one byte per character in 7 bits ASCII
     If the 8th bit is set, it is a special character (eg. a curses line)
     '''
+
+    # codepage defines the character set
+    # the original charset of as IBM PC VGA screen was cp437
+    # but it gives me artifacts now (prints '$' signs, which could be a bug?)
+    # so use latin_1 or cp1252
+    # Note: we must use single-byte character encoding because we use a bytearray
+    # (which is a bad choice in today's world, but ScreenBuf mimics VGA)
+    CODEPAGE = 'cp1252'
 
     def __init__(self, w, h):
         '''initialize'''
@@ -217,7 +225,7 @@ class ScreenBuf(object):
 
         offset = self.w * y + x
         w = len(msg)
-        self.textbuf[offset:offset + w] = msg
+        self.textbuf[offset:offset + w] = bytes(msg, ScreenBuf.CODEPAGE)
 
     def hline(self, x, y, w, ch, color=0):
         '''repeat character horizontally'''
@@ -230,7 +238,7 @@ class ScreenBuf(object):
             ch |= 0x80
 
         offset = self.w * y + x
-        self.textbuf[offset:offset + w] = chr(ch) * w
+        self.textbuf[offset:offset + w] = bytes(chr(ch) * w, ScreenBuf.CODEPAGE)
 
     def vline(self, x, y, h, ch, color=0):
         '''repeat character horizontally'''
@@ -243,7 +251,7 @@ class ScreenBuf(object):
             ch |= 0x80
 
         offset = self.w * y + x
-        for _ in xrange(0, h):
+        for _ in range(0, h):
             self.textbuf[offset] = ch
             offset += self.w
 
@@ -285,7 +293,7 @@ class ScreenBuf(object):
             dst.textbuf[di:di + sw] = src.textbuf[si:si + sw]
 
         # copy rect by copying line by line
-        for j in xrange(0, sh):
+        for j in range(0, sh):
             copyline(self, dx, dy + j, src, sx, sy + j, sw)
 
 
@@ -293,10 +301,6 @@ class ScreenBuf(object):
 class MonoScreenBuf(ScreenBuf):
     '''monochrome screen buffer has no colors'''
 
-    def __init__(self, w, h):
-        '''initialize'''
-
-        super(MonoScreenBuf, self).__init__(w, h)
 
 
 
@@ -316,7 +320,7 @@ class ColorScreenBuf(ScreenBuf):
     def __init__(self, w, h):
         '''initialize'''
 
-        super(ColorScreenBuf, self).__init__(w, h)
+        super().__init__(w, h)
 
         self.colorbuf = bytearray(w * h)
 
@@ -382,15 +386,15 @@ class ColorScreenBuf(ScreenBuf):
         self.textbuf[offset] = ch
         self.colorbuf[offset] = color
 
-    def puts(self, x, y, msg, color):
+    def puts(self, x, y, msg, color):           # pylint: disable=signature-differs
         '''write message into buffer at x, y'''
 
         offset = self.w * y + x
         w = len(msg)
-        self.textbuf[offset:offset + w] = msg
-        self.colorbuf[offset:offset + w] = chr(color) * w
+        self.textbuf[offset:offset + w] = bytes(msg, ScreenBuf.CODEPAGE)
+        self.colorbuf[offset:offset + w] = bytes(chr(color) * w, ScreenBuf.CODEPAGE)
 
-    def hline(self, x, y, w, ch, color):
+    def hline(self, x, y, w, ch, color):        # pylint: disable=signature-differs
         '''repeat character horizontally'''
 
         if isinstance(ch, str):
@@ -401,10 +405,10 @@ class ColorScreenBuf(ScreenBuf):
             ch |= 0x80
 
         offset = self.w * y + x
-        self.textbuf[offset:offset + w] = chr(ch) * w
-        self.colorbuf[offset:offset + w] = chr(color) * w
+        self.textbuf[offset:offset + w] = bytes(chr(ch) * w, ScreenBuf.CODEPAGE)
+        self.colorbuf[offset:offset + w] = bytes(chr(color) * w, ScreenBuf.CODEPAGE)
 
-    def vline(self, x, y, h, ch, color):
+    def vline(self, x, y, h, ch, color):        # pylint: disable=signature-differs
         '''repeat character horizontally'''
 
         if isinstance(ch, str):
@@ -415,7 +419,7 @@ class ColorScreenBuf(ScreenBuf):
             ch |= 0x80
 
         offset = self.w * y + x
-        for _ in xrange(0, h):
+        for _ in range(0, h):
             self.textbuf[offset] = ch
             self.colorbuf[offset] = color
             offset += self.w
@@ -460,12 +464,12 @@ class ColorScreenBuf(ScreenBuf):
             dst.colorbuf[di:di + sw] = src.colorbuf[si:si + sw]
 
         # copy rect by copying line by line
-        for j in xrange(0, sh):
+        for j in range(0, sh):
             copyline(self, dx, dy + j, src, sx, sy + j, sw)
 
 
 
-class Rect(object):
+class Rect:
     '''represents a rectangle'''
 
     def __init__(self, x, y, w, h):
@@ -482,7 +486,7 @@ class Rect(object):
     def __str__(self):
         '''Returns string representation'''
 
-        return '{%d, %d, %d, %d}' % (self.x, self.y, self.w, self.h)
+        return '{{{}, {}, {}, {}}}'.format(self.x, self.y, self.w, self.h)
 
     def copy(self):
         '''Returns a copy'''
@@ -515,14 +519,14 @@ class Rect(object):
         if True then the point is visible
         '''
 
-        return x >= 0 and x < self.w and y >= 0 and y < self.h
+        return 0 <= x < self.w and 0 <= y < self.h
 
     def clip_hline(self, x, y, w):
         '''clip horizontal line against rect
         If visible, returns clipped tuple: True, x, y, w
         '''
 
-        if x + w < 0 or x >= self.w or y < 0 or y >= self.h:
+        if x + w < 0 or x >= self.w or y < 0 or y >= self.h:        # pylint: disable=chained-comparison
             return False, -1, -1, -1
 
         if x < 0:
@@ -539,7 +543,7 @@ class Rect(object):
         If visible, returns clipped tuple: True, x, y, h
         '''
 
-        if x < 0 or x >= self.w or y + h < 0 or y >= self.h:
+        if x < 0 or x >= self.w or y + h < 0 or y >= self.h:        # pylint: disable=chained-comparison
             return False, -1, -1, -1
 
         if y < 0:
@@ -556,7 +560,7 @@ class Rect(object):
         If visible, returns clipped tuple: True, x, y, w, h
         '''
 
-        if x + w < 0 or x >= self.w or y + h < 0 or y >= self.h:
+        if x + w < 0 or x >= self.w or y + h < 0 or y >= self.h:    # pylint: disable=chained-comparison
             return False, -1, -1, -1, -1
 
         if x < 0:
@@ -577,7 +581,7 @@ class Rect(object):
 
 
 
-class Video(object):
+class Video:
     '''text mode video'''
 
     def __init__(self):
@@ -751,7 +755,7 @@ class Video(object):
         else:
             attr = curses_color(color, alt=alt)
 
-        for j in xrange(0, h):
+        for j in range(0, h):
             self.screenbuf.hline(x, y + j, w, ' ', color)
             STDSCR.hline(y + j, x, ' ', w, attr)
 
@@ -769,24 +773,24 @@ class Video(object):
             attr = curses_color(color, alt=alt)
 
         # top
-        if y >= 0 and y < self.h:
+        if 0 <= y < self.h:
             self.screenbuf.hline(cx, y, cw, curses.ACS_HLINE, color)
             STDSCR.hline(y, cx, curses.ACS_HLINE, cw, attr)
 
         # left
-        if x >= 0 and x < self.w:
+        if 0 <= x < self.w:
             self.screenbuf.vline(x, cy, ch, curses.ACS_VLINE, color)
             STDSCR.vline(cy, x, curses.ACS_VLINE, ch, attr)
 
         # right
         rx = x + w - 1
-        if rx >= 0 and rx < self.w:
+        if 0 <= rx < self.w:
             self.screenbuf.vline(rx, cy, ch, curses.ACS_VLINE, color)
             STDSCR.vline(cy, rx, curses.ACS_VLINE, ch, attr)
 
         # bottom
         by = y + h - 1
-        if by >= 0 and by < self.h:
+        if 0 <= by < self.h:
             self.screenbuf.hline(cx, by, cw, curses.ACS_HLINE, color)
             STDSCR.hline(by, cx, curses.ACS_HLINE, cw, attr)
 
@@ -845,7 +849,7 @@ class Video(object):
 
         # get the character and redraw with color
         offset = self.w * y + x
-        for i in xrange(0, w):
+        for i in range(0, w):
             ch, _ = self.screenbuf[offset]
             self.screenbuf[offset] = (ch, color)
             offset += 1
@@ -868,7 +872,7 @@ class Video(object):
 
         # get the character and redraw with color
         offset = self.w * y + x
-        for j in xrange(0, h):
+        for j in range(0, h):
             ch, _ = self.screenbuf[offset]
             self.screenbuf[offset] = (ch, color)
             offset += self.w
@@ -912,8 +916,8 @@ class Video(object):
         # update the curses screen
         prev_color = None
         offset = self.w * y + x
-        for j in xrange(0, buf.h):
-            for i in xrange(0, buf.w):
+        for j in range(0, buf.h):
+            for i in range(0, buf.w):
                 ch, color = self.screenbuf[offset]
                 if isinstance(ch, str):
                     ch = ord(ch)
@@ -934,7 +938,7 @@ class Video(object):
 
 
 
-class ColorSet(object):
+class ColorSet:
     '''collection of colors'''
 
     def __init__(self, fg=WHITE, bg=BLACK, bold=False):
@@ -964,7 +968,7 @@ class ColorSet(object):
 
 
 
-class Window(object):
+class Window:
     '''represents a window'''
 
     OPEN = 1
@@ -1092,7 +1096,7 @@ class Window(object):
         # override this method
         # This method should only change coordinates;
         # a redraw will be called automatically
-        pass
+        #pass
 
     def draw(self):
         '''draw the window'''
@@ -1116,7 +1120,7 @@ class Window(object):
         # draw title
         if self.title is not None:
             title = ' ' + self.title + ' '
-            x = (self.frame.w - len(title)) / 2
+            x = (self.frame.w - len(title)) // 2
             VIDEO.puts(self.frame.x + x, self.frame.y, title,
                        self.colors.title)
 
@@ -1147,7 +1151,7 @@ class Window(object):
 #            ...
 #        else:
 #            ...
-        pass
+        #pass
 
     def putch(self, x, y, ch, color=-1, alt=False):
         '''put character in window'''
@@ -1246,7 +1250,7 @@ class TextWindow(Window):
                  text=None, tabsize=4, scrollbar=True, status=True):
         '''initialize'''
 
-        super(TextWindow, self).__init__(x, y, w, h, colors, title, border)
+        super().__init__(x, y, w, h, colors, title, border)
         if text is None:
             self.text = []
         else:
@@ -1297,7 +1301,7 @@ class TextWindow(Window):
         if not self.flags & Window.SHOWN:
             return
 
-        super(TextWindow, self).draw()
+        super().draw()
         self.draw_text()
         self.draw_scrollbar()
         self.draw_statusbar()
@@ -1329,8 +1333,8 @@ class TextWindow(Window):
             alt = False
         self.printline(self.cursor, color, alt)
 
-        self.update_statusbar(' %d,%d ' % (self.top + self.cursor + 1,
-                                           self.xoffset + 1))
+        self.update_statusbar(' {},{} '.format(self.top + self.cursor + 1,
+                                               self.xoffset + 1))
 
     def clear_cursor(self):
         '''erase the cursor'''
@@ -1357,7 +1361,7 @@ class TextWindow(Window):
         '''initalize scrollbar'''
 
         if self.has_border and len(self.text) > 0:
-            factor = float(self.bounds.h) / len(self.text)
+            factor = float(self.bounds.h) // len(self.text)
             self.scrollbar_h = int(factor * self.bounds.h + 0.5)
             if self.scrollbar_h < 1:
                 self.scrollbar_h = 1
@@ -1374,7 +1378,7 @@ class TextWindow(Window):
 
         old_y = self.scrollbar_y
 
-        factor = float(self.bounds.h) / len(self.text)
+        factor = float(self.bounds.h) // len(self.text)
         new_y = int((self.top + self.cursor) * factor + 0.5)
         if old_y != new_y:
             self.clear_scrollbar()
@@ -1388,7 +1392,7 @@ class TextWindow(Window):
                 self.scrollbar_h <= 0):
             return
 
-        y = self.scrollbar_y - self.scrollbar_h / 2
+        y = self.scrollbar_y - self.scrollbar_h // 2
         if y < 0:
             y = 0
         if y > self.bounds.h - self.scrollbar_h:
@@ -1404,7 +1408,7 @@ class TextWindow(Window):
                 self.scrollbar_h <= 0):
             return
 
-        y = self.scrollbar_y - self.scrollbar_h / 2
+        y = self.scrollbar_y - self.scrollbar_h // 2
         if y < 0:
             y = 0
         if y > self.bounds.h - self.scrollbar_h:
@@ -1633,7 +1637,7 @@ class TextWindow(Window):
                 self.lose_focus()
                 return GOTO_MENUBAR
 
-            elif key == KEY_UP:
+            if key == KEY_UP:
                 self.move_up()
 
             elif key == KEY_DOWN:
@@ -1645,10 +1649,10 @@ class TextWindow(Window):
             elif key == KEY_RIGHT:
                 self.move_right()
 
-            elif key == KEY_PAGEUP or key == 'Ctrl-U':
+            elif key == KEY_PAGEUP or key == 'Ctrl-U':      # pylint: disable=consider-using-in
                 self.pageup()
 
-            elif key == KEY_PAGEDOWN or key == 'Ctrl-D':
+            elif key == KEY_PAGEDOWN or key == 'Ctrl-D':    # pylint: disable=consider-using-in
                 self.pagedown()
 
             elif key == KEY_HOME:
@@ -1659,7 +1663,7 @@ class TextWindow(Window):
 
 
 
-class Widget(object):
+class Widget:
     '''represents a widget'''
 
     def __init__(self, parent, x, y, colors):
@@ -1675,7 +1679,6 @@ class Widget(object):
         '''draw widget'''
 
         # override this method
-        pass
 
     def gain_focus(self):
         '''we get focus'''
@@ -1693,7 +1696,6 @@ class Widget(object):
         '''draw cursor'''
 
         # override this method
-        pass
 
 
 
@@ -1705,7 +1707,7 @@ class Button(Widget):
 
         assert label is not None
 
-        super(Button, self).__init__(parent, x, y, colors)
+        super().__init__(parent, x, y, colors)
 
         self.hotkey, self.hotkey_pos, self.label = label_hotkey(label)
 
@@ -1817,7 +1819,7 @@ class Alert(Window):
         x = center_x(w)
         y = center_y(h)
 
-        super(Alert, self).__init__(x, y, w, h, colors, title, border)
+        super().__init__(x, y, w, h, colors, title, border)
 
         self.text = lines
         self.center_text = center_text
@@ -1858,7 +1860,7 @@ class Alert(Window):
                 hotkey, _, _ = label_hotkey(label)
                 self.hotkeys.append(hotkey)
 
-        assert default >= 0 and default < len(self.buttons)
+        assert 0 <= default < len(self.buttons)
         self.cursor = self.default = default
 
     def resize_event(self):
@@ -1886,7 +1888,7 @@ class Alert(Window):
     def draw(self):
         '''draw the alert box'''
 
-        super(Alert, self).draw()
+        super().draw()
 
         # draw the text
         y = 1
@@ -1942,7 +1944,7 @@ class Alert(Window):
         '''
 
         if not self.hotkeys:
-            return
+            return False
 
         if len(key) == 1:
             key = key.upper()
@@ -1978,13 +1980,13 @@ class Alert(Window):
                 self.close()
                 return RETURN_TO_PREVIOUS
 
-            elif key == KEY_LEFT or key == KEY_BTAB:
+            if key == KEY_LEFT or key == KEY_BTAB:          # pylint: disable=consider-using-in
                 self.move_left()
 
-            elif key == KEY_RIGHT or key == KEY_TAB:
+            elif key == KEY_RIGHT or key == KEY_TAB:        # pylint: disable=consider-using-in
                 self.move_right()
 
-            elif key == KEY_RETURN or key == ' ':
+            elif key == KEY_RETURN or key == ' ':           # pylint: disable=consider-using-in
                 self.push()
                 self.close()
                 return self.cursor
@@ -1995,7 +1997,7 @@ class Alert(Window):
 
 
 
-class MenuItem(object):
+class MenuItem:
     '''a single menu item'''
 
     def __init__(self, label):
@@ -2026,7 +2028,7 @@ class Menu(Window):
         if border:
             h += 2
 
-        super(Menu, self).__init__(x, y, w, h, colors, None, border)
+        super().__init__(x, y, w, h, colors, None, border)
 
         # make list of MenuItems
         self.items = [MenuItem(item) for item in items]
@@ -2036,7 +2038,7 @@ class Menu(Window):
     def draw(self):
         '''draw the window'''
 
-        super(Menu, self).draw()
+        super().draw()
         self.draw_items()
 
     def draw_items(self):
@@ -2181,31 +2183,31 @@ class Menu(Window):
                 self.close()
                 return RETURN_TO_PREVIOUS
 
-            elif key == self.closekey or key.upper() == self.closekey:
+            if key == self.closekey or key.upper() == self.closekey:
                 self.close()
                 return MENU_CLOSE
 
-            elif key == KEY_LEFT or key == KEY_BTAB:
+            if key == KEY_LEFT or key == KEY_BTAB:          # pylint: disable=consider-using-in
                 self.close()
                 return MENU_LEFT
 
-            elif key == KEY_RIGHT or key == KEY_TAB:
+            if key == KEY_RIGHT or key == KEY_TAB:          # pylint: disable=consider-using-in
                 self.close()
                 return MENU_RIGHT
 
-            elif key == KEY_UP:
+            if key == KEY_UP:
                 self.move_up()
 
             elif key == KEY_DOWN:
                 self.move_down()
 
-            elif key == KEY_PAGEUP or key == KEY_HOME:
+            elif key == KEY_PAGEUP or key == KEY_HOME:      # pylint: disable=consider-using-in
                 self.goto_top()
 
-            elif key == KEY_PAGEDOWN or key == KEY_END:
+            elif key == KEY_PAGEDOWN or key == KEY_END:     # pylint: disable=consider-using-in
                 self.goto_bottom()
 
-            elif key == KEY_RETURN or key == ' ':
+            elif key == KEY_RETURN or key == ' ':           # pylint: disable=consider-using-in
                 self.close()
                 return self.cursor
 
@@ -2223,7 +2225,7 @@ class MenuBar(Window):
         menus is a list of tuples: ('header', ['item #1', 'item #2', 'etc.'])
         '''
 
-        super(MenuBar, self).__init__(0, 0, VIDEO.w, 1, colors, border=False)
+        super().__init__(0, 0, VIDEO.w, 1, colors, border=False)
 
         # make list of headers and menus
         self.headers = [MenuItem(m[0]) for m in menus]
@@ -2373,7 +2375,7 @@ class MenuBar(Window):
                 self.back()
                 return RETURN_TO_PREVIOUS
 
-            elif key == KEY_LEFT:
+            if key == KEY_LEFT:
                 self.move_left()
 
             elif key == KEY_RIGHT:
@@ -2399,11 +2401,11 @@ class MenuBar(Window):
                         self.back()
                         return RETURN_TO_PREVIOUS
 
-                    elif choice == MENU_CLOSE:
+                    if choice == MENU_CLOSE:
                         # close menu; return to menubar
                         break
 
-                    elif choice == MENU_LEFT:
+                    if choice == MENU_LEFT:
                         # navigate left and open menu
                         self.move_left()
 
@@ -2427,7 +2429,7 @@ class TextField(Widget):
                  inputfilter=None):
         '''initialize'''
 
-        super(TextField, self).__init__(parent, x, y, colors)
+        super().__init__(parent, x, y, colors)
 
         self.w = w
         self.text = ''
@@ -2546,23 +2548,23 @@ class TextField(Widget):
                 self.clear()
                 return RETURN_TO_PREVIOUS
 
-            elif key == KEY_BTAB:
+            if key == KEY_BTAB:
                 self.lose_focus()
                 self.clear()
                 return BACK
 
-            elif key == KEY_TAB:
+            if key == KEY_TAB:
                 self.lose_focus()
                 self.clear()
                 return NEXT
 
-            elif key == KEY_RETURN:
+            if key == KEY_RETURN:
                 self.add_history()
                 self.lose_focus()
                 self.clear()
                 return ENTER
 
-            elif key == KEY_BS:
+            if key == KEY_BS:
                 if self.cursor > 0:
                     self.text = (self.text[:self.cursor - 1] +
                                  self.text[self.cursor:])
@@ -2619,10 +2621,10 @@ class TextField(Widget):
         '''
 
         val = ord(key)
-        if val >= ord(' ') and val <= ord('~'):
+        if ord(' ') <= val <= ord('~'):
             return key
-        else:
-            return None
+
+        return None
 
 
 
@@ -2632,8 +2634,7 @@ class CmdLine(Window):
     def __init__(self, x, y, w, colors, prompt=None):
         '''initialize'''
 
-        super(CmdLine, self).__init__(x, y, w, 1, colors, title=None,
-                                      border=False)
+        super().__init__(x, y, w, 1, colors, title=None, border=False)
         x = self.bounds.x
         w = self.bounds.w
         self.prompt = prompt
@@ -2667,7 +2668,7 @@ class CmdLine(Window):
 
 
 
-class WindowStack(object):
+class WindowStack:
     '''represents a stack of Windows'''
 
     def __init__(self):
@@ -2714,13 +2715,13 @@ def video_color(fg, bg=None, bold=False):
         # passed in only a combined color code
         return fg
 
-    assert fg >= 0 and fg < BOLD
-    assert bg >= 0 and bg < BOLD
+    assert 0 <= fg < BOLD
+    assert 0 <= bg < BOLD
 
     if bold:
         return (bg << 4) | BOLD | fg
-    else:
-        return (bg << 4) | fg
+
+    return (bg << 4) | fg
 
 
 def reverse_video(color):
@@ -2750,14 +2751,13 @@ def curses_color(fg, bg=None, bold=False, alt=False):
         bg = color >> 4
         bold = (color & BOLD) == BOLD
 
-    assert fg >= 0 and fg < BOLD
-    assert bg >= 0 and bg < BOLD
+    assert 0 <= fg < BOLD
+    assert 0 <= bg < BOLD
 
-    idx = '%02x' % ((bg << 4) | fg)
+    idx = '{:02x}'.format((bg << 4) | fg)
     if idx not in CURSES_COLORPAIRS:
         # make new curses color pair
-        assert (CURSES_COLORPAIR_IDX >= 0 and
-                CURSES_COLORPAIR_IDX < curses.COLOR_PAIRS - 1)
+        assert 0 <= CURSES_COLORPAIR_IDX < curses.COLOR_PAIRS - 1
         CURSES_COLORPAIR_IDX += 1
         fg = CURSES_COLORS[fg]
         bg = CURSES_COLORS[bg]
@@ -2767,8 +2767,8 @@ def curses_color(fg, bg=None, bold=False, alt=False):
     color = curses.color_pair(CURSES_COLORPAIRS[idx])
     if bold:
         return color | curses.A_BOLD
-    else:
-        return color
+    #else
+    return color
 
 
 def label_hotkey(label):
@@ -2802,8 +2802,8 @@ def label_length(label):
     m = REGEX_HOTKEY.match(label)
     if m is None:
         return len(label)
-    else:
-        return len(label) - 2
+    #else
+    return len(label) - 2
 
 
 def button_width(label):
@@ -2984,7 +2984,7 @@ def terminate():
         curses.resetty()
         curses.endwin()
 
-    print
+    print()
     dump_debug()
 
     sys.stdout.flush()
@@ -3062,15 +3062,15 @@ def getch():
             # got a user key
             break
 
-    if key >= ord(' ') and key <= ord('~'):
+    if ord(' ') <= key <= ord('~'):
         # ascii keys are returned as string
         return chr(key)
 
-    skey = '0x%02x' % key
+    skey = '0x{:02x}'.format(key)
     if skey in KEY_TABLE:
         return KEY_TABLE[skey]
 
-    if key >= 1 and key <= 26:
+    if 1 <= key <= 26:
         # Ctrl-A to Ctrl-Z
         return 'Ctrl-' + chr(ord('@') + key)
 
@@ -3094,8 +3094,8 @@ def unit_test():
     pinky = VIDEO.set_color(YELLOW, MAGENTA)
     VIDEO.set_color(YELLOW, GREEN)
 
-    x = VIDEO.w / 2 - 1
-    y = VIDEO.h / 2
+    x = VIDEO.w // 2 - 1
+    y = VIDEO.h // 2
 
     VIDEO.putch(x, y, 'W')
     VIDEO.putch(x + 1, y, 'J', pinky)
@@ -3179,7 +3179,7 @@ def unit_test():
         if event == RETURN_TO_PREVIOUS:
             continue
 
-        elif event == GOTO_MENUBAR:
+        if event == GOTO_MENUBAR:
             # activate menubar by making it front
             menubar.front()
 
@@ -3190,10 +3190,10 @@ def unit_test():
 if __name__ == '__main__':
     try:
         unit_test()
-    except:
+    except:                 # pylint: disable=bare-except
         terminate()
         traceback.print_exc()
-        raw_input('hit return')
+        input('hit return')
 
 
 # EOB
