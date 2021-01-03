@@ -32,7 +32,7 @@ Starting hexview
 ----------------
 If you don't like colors, `hexview` may be started with:
 
-    hexview.py --no-colors
+    hexview.py --no-color
 
 See `hexview.py --help` for more options.
 
@@ -48,4 +48,3 @@ or use `setup.py bdist` to create a package.
 
 - - -
 _Copyright 2016 by Walter de Jong <walter@heiho.net>_
-
