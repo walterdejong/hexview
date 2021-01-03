@@ -218,7 +218,7 @@ class ScreenBuf:
         else:
             raise ValueError('invalid argument')
 
-        self.textbuf[offset] = bytes(ch, ScreenBuf.CODEPAGE)
+        self.textbuf[offset] = ch
 
     def puts(self, x, y, msg, color=0):
         '''write message into buffer at x, y'''
@@ -252,7 +252,7 @@ class ScreenBuf:
 
         offset = self.w * y + x
         for _ in range(0, h):
-            self.textbuf[offset] = bytes(ch, ScreenBuf.CODEPAGE)
+            self.textbuf[offset] = ch
             offset += self.w
 
     def memmove(self, dst_idx, src_idx, num):
