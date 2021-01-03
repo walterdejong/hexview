@@ -41,7 +41,7 @@ from hexviewlib.textmode import KEY_PAGEUP, KEY_PAGEDOWN, KEY_HOME, KEY_END
 from hexviewlib.textmode import KEY_TAB, KEY_BTAB, KEY_BS, KEY_DEL
 #from hexviewlib.textmode import debug
 
-VERSION = '1.0'
+VERSION = '1.3'
 
 OPT_LINEMODE = textmode.LM_HLINE | textmode.LM_VLINE
 
