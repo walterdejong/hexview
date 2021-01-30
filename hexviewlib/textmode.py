@@ -1279,8 +1279,7 @@ class TextWindow(Window):
         Raises OSError on error
         '''
 
-        f = open(filename)
-        with f:
+        with open(filename) as f:
             self.text = f.readlines()
 
         # strip newlines
