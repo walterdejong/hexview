@@ -262,7 +262,7 @@ class HexWindow(textmode.Window):
 
     def load(self, filename):
         '''load file
-        Raises IOError on error
+        Raises OSError on error
         '''
 
         self.data = MemoryFile(filename, self.bounds.h * 16)
@@ -1572,7 +1572,7 @@ class HexWindow(textmode.Window):
             filename = os.path.expandvars(filename)
         try:
             self.load(filename)
-        except (OSError, IOError) as err:
+        except OSError as err:
             self.ignore_focus = True
             self.cmdline.show()
             self.cmdline.cputs(0, 0, err.strerror,
@@ -2312,7 +2312,7 @@ def hexview_main(filename):
     view = HexWindow(0, 0, 80, textmode.VIDEO.h - 1, colors)
     try:
         view.load(filename)
-    except (OSError, IOError) as err:
+    except OSError as err:
         textmode.terminate()
         print('{}: {}'.format(filename, err.strerror))
         sys.exit(-1)

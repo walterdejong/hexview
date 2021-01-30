@@ -1276,7 +1276,7 @@ class TextWindow(Window):
 
     def load(self, filename):
         '''load text file
-        Raises IOError on error
+        Raises OSError on error
         '''
 
         f = open(filename)
